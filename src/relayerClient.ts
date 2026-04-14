@@ -20,6 +20,10 @@ export type SubmitIntentRequest = {
   user_owner: string;
   mango_account: string;
   user_signature: Uint8Array;
+  base_fee?: string;
+  intent_version?: number;
+  target_kind?: number;
+  target_index?: number;
 };
 
 export type SubmitIntentResponse = {
@@ -27,6 +31,10 @@ export type SubmitIntentResponse = {
   tx_signature: string;
   user_intent_message: Buffer;
   ctm_envelope_message: Buffer;
+  resolved_intent_version?: number;
+  resolved_target_kind?: number;
+  resolved_target_index?: number;
+  resolved_accounts_hash?: string;
 };
 
 type RelayerGrpcClient = {

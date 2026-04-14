@@ -37,6 +37,7 @@ export type MangoContext = {
   group: Group;
   mangoAccount: MangoAccount;
   executionQueuePk: PublicKey;
+  programId: PublicKey;
 };
 
 export function loadKeypair(rawPathOrJson: string | number[] | Uint8Array): Keypair {
@@ -89,6 +90,7 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
     group,
     mangoAccount,
     executionQueuePk: toPublicKey(config.executionQueuePk),
+    programId,
   };
 }
 

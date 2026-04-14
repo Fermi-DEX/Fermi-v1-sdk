@@ -1,6 +1,20 @@
 # Intent Reference
 
-This file captures the exact relayer intent shape and signing flow for the current devnet deployment, plus the canonical helper path already used in this SDK.
+This file captures the current `v2` relayer intent shape and the direct
+on-chain enqueue fallback now implemented in this SDK.
+
+The SDK now exposes two perp intent paths in [src/trading.ts](./src/trading.ts):
+
+- relayed submit via `submitPerp*ViaRelayer(...)`
+- direct on-chain enqueue via `submitPerp*Direct(...)`
+
+Both paths use the same user-signed `v2` intent digest. The difference is:
+
+- relayed submit sends the signed intent to the relayer, which derives and
+  finalizes dispatch accounts server-side
+- direct enqueue sends the user signature plus `execution_queue_enqueue_direct`
+  on-chain, with no CTM signature and the program-assigned delayed execution
+  speedbump
 
 ## Current Deployment Values
 
@@ -20,6 +34,13 @@ Important:
 
 - The HTTP bridge expects `payload_b64` and `user_signature_b64`.
 - The gRPC relayer expects raw `payload` bytes and raw `user_signature` bytes.
+- The fee preference is external to the signed intent payload:
+  - HTTP bridge: `_base_fee`
+  - gRPC / proto: `base_fee`
+- `intent_version`, `target_kind`, and `target_index` are now required for `v2`
+  clients.
+- `remaining_accounts` may still be sent for debugging, but `v2` relayer
+  execution derives canonical accounts locally.
 - Some older docs still show `payload` and `user_signature` in the HTTP body. The live bridge code does not.
 
 ```json
@@ -27,6 +48,10 @@ Important:
   "group": "Cj8vUC2nWbREhofnD3iWk4j8CD9Fo6j9c33M5ZFKLVPB",
   "execution_queue": "8J7vAomtCVabazRNs8XH4BF3w4BVP852QoASg9yrXUaa",
   "market": "0",
+  "intent_version": 2,
+  "target_kind": 0,
+  "target_index": 0,
+  "_base_fee": "AUTO",
   "payload_b64": "<base64-encoded queue payload bytes>",
   "remaining_accounts": [
     {
@@ -98,10 +123,104 @@ Important:
 }
 ```
 
-Only two fields need to be generated locally by the bot:
+For most clients, `_base_fee: "AUTO"` is the correct default.
+
+If you want to cap what the relayer may charge, send a maximum instead of
+`AUTO`, for example:
+
+- `"25000lamports"`
+- `"0.00002sol"`
+
+Fields that must be generated locally by the bot:
 
 - `payload_b64`
 - `user_signature_b64`
+- `intent_version`
+- `target_kind`
+- `target_index`
+
+`_base_fee` should be set by the client, but it is not part of the user-signed
+digest.
+
+See [fee_system.md](./fee_system.md) for the exact fee-balance and deposit flow.
+
+## Critical Payload Warning
+
+`payload_b64` must be the raw execution-queue payload bytes.
+
+It must not be:
+
+- an Anchor instruction discriminator plus body
+- a serialized JSON object
+- a hex string encoded as UTF-8
+- base64 of human-readable hex text
+
+For `PerpPlaceOrderV2`, the queue payload always starts with this 4-byte header:
+
+```text
+01 00 00 00
+```
+
+Meaning:
+
+- `01` = queue payload version v1
+- `00` = `PerpPlaceOrderV2` variant
+- `0000` = flags
+
+Wrong:
+
+```text
+e8e09a4e9eb806db ...
+```
+
+That is an Anchor instruction discriminator for direct `perp_place_order_v2` instruction data. If you send that to the relayer as `payload_b64`, the queue decoder rejects it with error `6086`.
+
+Right:
+
+```text
+01 00 00 00 ...
+```
+
+For the example order:
+
+- `side = bid`
+- `priceLots = 10000`
+- `maxBaseLots = 100`
+- `maxQuoteLots = i64::MAX`
+- `clientOrderId = 1775489806394`
+- `orderType = postOnly`
+- `selfTradeBehavior = decrementTake`
+- `reduceOnly = false`
+- `expiryTimestamp = 0`
+- `limit = 10`
+
+the correct queue payload hex is:
+
+```text
+010000000010270000000000006400000000000000ffffffffffffff7f3a7070639d010000020000000000000000000a
+```
+
+This is:
+
+```text
+01000000
++ 00
++ 1027000000000000
++ 6400000000000000
++ ffffffffffffff7f
++ 3a7070639d010000
++ 02
++ 00
++ 00
++ 0000000000000000
++ 0a
+```
+
+If the first byte of the decoded payload is not `01`, the program throws:
+
+- `6086`
+- `ExecutionQueuePayloadVersionUnsupported`
+- `execution queue payload version unsupported`
 
 ## Exact User Intent Signing Construction
 
@@ -112,34 +231,50 @@ Authoritative implementation:
 - `src/trading.ts`
 - `../mng-v4/ts/client/src/executionQueue.ts`
 
-The canonical flow is:
+The canonical `v2` flow is:
 
 1. Build the raw queue payload bytes for the requested action.
 2. Compute `payload_hash = sha256(payload)`.
-3. Compute `accounts_hash` from `remaining_accounts` in the exact submitted order.
-4. Build `user_intent_message = sha256(...)` over the exact byte concat below.
-5. Sign `user_intent_message` with Ed25519 detached signature.
-6. Encode the raw 64-byte signature as base64 and send it as `user_signature_b64`.
+3. Build `user_intent_message = sha256(...)` over the exact byte concat below.
+4. Sign `user_intent_message` with Ed25519 detached signature.
+5. Encode the raw 64-byte signature as base64 and send it as `user_signature_b64`.
+
+The user message no longer signs `accounts_hash`. The explicit target is signed
+instead, which lets the relayer derive `remaining_accounts` safely.
 
 The exact digest is:
 
 ```text
 sha256(
-  utf8("mango-v4-user-intent-v1")
+  utf8("mango-v4-user-intent-v2")
   || group_pubkey_32
   || mango_account_pubkey_32
   || user_owner_pubkey_32
   || kind_u8
+  || target_kind_u8
+  || target_index_u16_le
   || payload_hash_32
-  || accounts_hash_32
 )
 ```
 
 For relayed perp intents:
 
 - `kind = 0`
+- `target_kind = 0` (`PerpMarket`)
+- `target_index = market_index`
 - the pubkeys are raw 32-byte values, not base58 strings
-- `market`, `min_execute_slot`, and `expires_at_slot` are request metadata and are not part of the user-signed digest
+- `market`, `min_execute_slot`, and `expires_at_slot` are request metadata and
+  are not part of the user-signed digest
+- `base_fee` / `_base_fee` is also request metadata and is not part of the
+  user-signed digest
+
+For direct on-chain enqueue:
+
+- the same `v2` user digest is signed
+- there is no CTM signature
+- the SDK builds `execution_queue_enqueue_direct`
+- the program assigns `sequence = max_seen_sequence + 1`
+- the program enforces the direct-submit speedbump before execution
 
 ## Exact Accounts Hash Rule
 
@@ -319,4 +454,3 @@ function signUserIntentMessage(
 ## Compatibility Note
 
 The relayer currently accepts a fallback where the user signs the ASCII hex string of the 32-byte digest. Do not rely on that mode unless you have to. The recommended path is to sign the raw 32-byte `user_intent_message`.
-

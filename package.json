@@ -29,7 +29,8 @@
     "@grpc/grpc-js": "^1.14.1",
     "@grpc/proto-loader": "^0.8.0",
     "@solana/web3.js": "^1.78.2",
-    "dotenv": "^16.0.3"
+    "dotenv": "^16.0.3",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@types/node": "^18.11.18",

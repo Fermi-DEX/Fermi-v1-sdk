@@ -1,16 +1,26 @@
 import {
-  buildExecutionQueueUserIntent,
-  encodePerpCancelAllOrdersQueuePayload,
-  encodePerpCancelOrderByClientOrderIdQueuePayload,
-  encodePerpPlaceOrderV2QueuePayload,
+  AccountMeta,
+  SendOptions,
+  Transaction,
+  sendAndConfirmTransaction,
+} from '@solana/web3.js';
+import {
   I64_MAX_BN,
   PerpMarketIndex,
   PerpOrderSide,
   PerpOrderType,
   PerpSelfTradeBehavior,
-  signExecutionQueueIntentMessage,
 } from '@blockworks-foundation/mango-v4';
 import { MangoContext, buildCanonicalPerpRemainingAccounts } from './context';
+import {
+  buildExecutionQueueEnqueueDirectWithIntentIxs,
+  buildPerpUserIntentMessageV2,
+  encodePerpCancelAllOrdersQueuePayload,
+  encodePerpCancelOrderByClientOrderIdQueuePayload,
+  encodePerpPlaceOrderV2QueuePayload,
+  signIntentMessage,
+  UserIntentTargetKind,
+} from './intents';
 import {
   ContinuumRelayerClient,
   SubmitIntentResponse,
@@ -31,6 +41,7 @@ export type SubmitPerpOrderParams = {
   limit?: number;
   minExecuteSlot?: bigint;
   expiresAtSlot?: bigint;
+  baseFee?: string;
 };
 
 export type SubmitPerpCancelByClientIdParams = {
@@ -38,6 +49,7 @@ export type SubmitPerpCancelByClientIdParams = {
   clientOrderId: number;
   minExecuteSlot?: bigint;
   expiresAtSlot?: bigint;
+  baseFee?: string;
 };
 
 export type SubmitPerpCancelAllParams = {
@@ -45,35 +57,84 @@ export type SubmitPerpCancelAllParams = {
   limit?: number;
   minExecuteSlot?: bigint;
   expiresAtSlot?: bigint;
+  baseFee?: string;
 };
 
-async function signIntent(params: {
+export type DirectIntentSubmitResult = {
+  txSignature: string;
+  userIntentMessage: Buffer;
+};
+
+async function buildPerpIntentAuth(params: {
+  context: MangoContext;
+  marketIndex: number;
+  payload: Uint8Array;
+}): Promise<{
+  remainingAccounts: AccountMeta[];
+  userIntentMessage: Buffer;
+  userSignature: Uint8Array;
+}> {
+  const remainingAccounts = await buildCanonicalPerpRemainingAccounts(
+    params.context,
+    params.marketIndex,
+  );
+  const { userIntentMessage } = buildPerpUserIntentMessageV2({
+    group: params.context.group.publicKey,
+    mangoAccount: params.context.mangoAccount.publicKey,
+    userOwner: params.context.user.publicKey,
+    marketIndex: params.marketIndex,
+    payload: params.payload,
+  });
+  const userSignature = signIntentMessage(
+    params.context.user.secretKey,
+    userIntentMessage,
+  );
+
+  return {
+    remainingAccounts,
+    userIntentMessage,
+    userSignature,
+  };
+}
+
+async function submitPerpIntentDirect(params: {
   context: MangoContext;
   marketIndex: number;
   payload: Uint8Array;
   minExecuteSlot?: bigint;
   expiresAtSlot?: bigint;
-}) {
+  sendOptions?: SendOptions;
+}): Promise<DirectIntentSubmitResult> {
   const remainingAccounts = await buildCanonicalPerpRemainingAccounts(
     params.context,
     params.marketIndex,
   );
-  const intent = await buildExecutionQueueUserIntent({
+  const built = buildExecutionQueueEnqueueDirectWithIntentIxs({
+    programId: params.context.programId,
     group: params.context.group.publicKey,
     executionQueue: params.context.executionQueuePk,
-    mangoAccount: params.context.mangoAccount.publicKey,
-    userOwner: params.context.user.publicKey,
-    payload: params.payload,
+    marketIndex: params.marketIndex,
     remainingAccounts,
+    payload: params.payload,
+    minExecuteSlot: params.minExecuteSlot ?? 0n,
+    expiresAtSlot: params.expiresAtSlot ?? 0n,
+    userOwner: params.context.user.publicKey,
+    mangoAccount: params.context.mangoAccount.publicKey,
+    userSigner: { kind: 'keypair', privateKey: params.context.user.secretKey },
   });
-  const userSignature = signExecutionQueueIntentMessage(
-    params.context.user.secretKey,
-    intent.userIntentMessage,
+
+  const tx = new Transaction();
+  tx.add(...built.instructions);
+  const txSignature = await sendAndConfirmTransaction(
+    params.context.connection,
+    tx,
+    [params.context.user],
+    params.sendOptions,
   );
 
   return {
-    remainingAccounts,
-    userSignature,
+    txSignature,
+    userIntentMessage: built.userIntentMessage,
   };
 }
 
@@ -93,19 +154,17 @@ export async function submitPerpOrderViaRelayer(
       ? BigInt(perpMarket.uiQuoteToLots(params.maxQuoteQuantity).toString())
       : BigInt(I64_MAX_BN.toString()),
     clientOrderId: params.clientOrderId ?? Date.now(),
-    orderType: params.orderType ?? PerpOrderType.postOnly,
+    orderType: params.orderType ?? PerpOrderType.postOnlySlide,
     selfTradeBehavior:
       params.selfTradeBehavior ?? PerpSelfTradeBehavior.decrementTake,
     reduceOnly: params.reduceOnly ?? false,
     expiryTimestamp: params.expiryTimestamp ?? 0,
     limit: params.limit ?? 10,
   });
-  const signed = await signIntent({
+  const signed = await buildPerpIntentAuth({
     context,
     marketIndex: params.marketIndex,
     payload,
-    minExecuteSlot: params.minExecuteSlot,
-    expiresAtSlot: params.expiresAtSlot,
   });
 
   return await relayer.submitIntent({
@@ -119,6 +178,43 @@ export async function submitPerpOrderViaRelayer(
     user_owner: context.user.publicKey.toBase58(),
     mango_account: context.mangoAccount.publicKey.toBase58(),
     user_signature: Buffer.from(signed.userSignature),
+    base_fee: params.baseFee,
+    intent_version: 2,
+    target_kind: UserIntentTargetKind.PerpMarket,
+    target_index: params.marketIndex,
+  });
+}
+
+export async function submitPerpOrderDirect(
+  context: MangoContext,
+  params: SubmitPerpOrderParams & { sendOptions?: SendOptions },
+): Promise<DirectIntentSubmitResult> {
+  const perpMarket = context.group.getPerpMarketByMarketIndex(
+    params.marketIndex as PerpMarketIndex,
+  );
+  const payload = encodePerpPlaceOrderV2QueuePayload({
+    side: params.side,
+    priceLots: BigInt(perpMarket.uiPriceToLots(params.price).toString()),
+    maxBaseLots: BigInt(perpMarket.uiBaseToLots(params.quantity).toString()),
+    maxQuoteLots: params.maxQuoteQuantity
+      ? BigInt(perpMarket.uiQuoteToLots(params.maxQuoteQuantity).toString())
+      : BigInt(I64_MAX_BN.toString()),
+    clientOrderId: params.clientOrderId ?? Date.now(),
+    orderType: params.orderType ?? PerpOrderType.postOnlySlide,
+    selfTradeBehavior:
+      params.selfTradeBehavior ?? PerpSelfTradeBehavior.decrementTake,
+    reduceOnly: params.reduceOnly ?? false,
+    expiryTimestamp: params.expiryTimestamp ?? 0,
+    limit: params.limit ?? 10,
+  });
+
+  return await submitPerpIntentDirect({
+    context,
+    marketIndex: params.marketIndex,
+    payload,
+    minExecuteSlot: params.minExecuteSlot,
+    expiresAtSlot: params.expiresAtSlot,
+    sendOptions: params.sendOptions,
   });
 }
 
@@ -130,12 +226,10 @@ export async function cancelPerpOrderByClientIdViaRelayer(
   const payload = encodePerpCancelOrderByClientOrderIdQueuePayload({
     clientOrderId: BigInt(params.clientOrderId),
   });
-  const signed = await signIntent({
+  const signed = await buildPerpIntentAuth({
     context,
     marketIndex: params.marketIndex,
     payload,
-    minExecuteSlot: params.minExecuteSlot,
-    expiresAtSlot: params.expiresAtSlot,
   });
 
   return await relayer.submitIntent({
@@ -149,6 +243,27 @@ export async function cancelPerpOrderByClientIdViaRelayer(
     user_owner: context.user.publicKey.toBase58(),
     mango_account: context.mangoAccount.publicKey.toBase58(),
     user_signature: Buffer.from(signed.userSignature),
+    base_fee: params.baseFee,
+    intent_version: 2,
+    target_kind: UserIntentTargetKind.PerpMarket,
+    target_index: params.marketIndex,
+  });
+}
+
+export async function cancelPerpOrderByClientIdDirect(
+  context: MangoContext,
+  params: SubmitPerpCancelByClientIdParams & { sendOptions?: SendOptions },
+): Promise<DirectIntentSubmitResult> {
+  const payload = encodePerpCancelOrderByClientOrderIdQueuePayload({
+    clientOrderId: BigInt(params.clientOrderId),
+  });
+  return await submitPerpIntentDirect({
+    context,
+    marketIndex: params.marketIndex,
+    payload,
+    minExecuteSlot: params.minExecuteSlot,
+    expiresAtSlot: params.expiresAtSlot,
+    sendOptions: params.sendOptions,
   });
 }
 
@@ -160,12 +275,10 @@ export async function cancelAllPerpOrdersViaRelayer(
   const payload = encodePerpCancelAllOrdersQueuePayload({
     limit: params.limit ?? 255,
   });
-  const signed = await signIntent({
+  const signed = await buildPerpIntentAuth({
     context,
     marketIndex: params.marketIndex,
     payload,
-    minExecuteSlot: params.minExecuteSlot,
-    expiresAtSlot: params.expiresAtSlot,
   });
 
   return await relayer.submitIntent({
@@ -179,5 +292,26 @@ export async function cancelAllPerpOrdersViaRelayer(
     user_owner: context.user.publicKey.toBase58(),
     mango_account: context.mangoAccount.publicKey.toBase58(),
     user_signature: Buffer.from(signed.userSignature),
+    base_fee: params.baseFee,
+    intent_version: 2,
+    target_kind: UserIntentTargetKind.PerpMarket,
+    target_index: params.marketIndex,
+  });
+}
+
+export async function cancelAllPerpOrdersDirect(
+  context: MangoContext,
+  params: SubmitPerpCancelAllParams & { sendOptions?: SendOptions },
+): Promise<DirectIntentSubmitResult> {
+  const payload = encodePerpCancelAllOrdersQueuePayload({
+    limit: params.limit ?? 255,
+  });
+  return await submitPerpIntentDirect({
+    context,
+    marketIndex: params.marketIndex,
+    payload,
+    minExecuteSlot: params.minExecuteSlot,
+    expiresAtSlot: params.expiresAtSlot,
+    sendOptions: params.sendOptions,
   });
 }
