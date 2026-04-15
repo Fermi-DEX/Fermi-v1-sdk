@@ -34,8 +34,12 @@ async function waitForQueueDrain(baseUrl: string, timeoutMs: number): Promise<vo
     if (!response.ok) {
       throw new Error(`queue state request failed: ${response.status}`);
     }
-    const queueState = (await response.json()) as { pending_count: number };
-    if (queueState.pending_count === 0) {
+    const queueState = (await response.json()) as {
+      pending_count?: number;
+      data?: { pending_count?: number };
+    };
+    const pendingCount = queueState.data?.pending_count ?? queueState.pending_count ?? 0;
+    if (pendingCount === 0) {
       return;
     }
     await sleep(500);
