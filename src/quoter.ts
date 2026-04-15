@@ -112,7 +112,7 @@ export class RelayerPerpQuoterBot {
       quantity: this.config.size,
       maxQuoteQuantity: this.config.maxQuoteQuantity,
       clientOrderId,
-      orderType: this.config.orderType ?? PerpOrderType.postOnly,
+      orderType: this.config.orderType ?? PerpOrderType.postOnlySlide,
     });
     this.lastClientOrderId = clientOrderId;
 

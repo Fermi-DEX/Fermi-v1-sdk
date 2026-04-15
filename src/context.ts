@@ -20,6 +20,7 @@ import path from 'path';
 export type MangoContextConfig = {
   cluster: Cluster;
   clusterUrl: string;
+  harnessBaseUrl?: string;
   userKeypair: string | number[] | Uint8Array;
   groupPk: string | PublicKey;
   mangoAccountPk: string | PublicKey;
@@ -38,6 +39,7 @@ export type MangoContext = {
   mangoAccount: MangoAccount;
   executionQueuePk: PublicKey;
   programId: PublicKey;
+  harnessBaseUrl?: string;
 };
 
 export function loadKeypair(rawPathOrJson: string | number[] | Uint8Array): Keypair {
@@ -91,6 +93,7 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
     mangoAccount,
     executionQueuePk: toPublicKey(config.executionQueuePk),
     programId,
+    harnessBaseUrl: config.harnessBaseUrl,
   };
 }
 

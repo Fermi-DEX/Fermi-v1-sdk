@@ -65,6 +65,26 @@ export type DirectIntentSubmitResult = {
   userIntentMessage: Buffer;
 };
 
+async function maybeRegisterDirectLane(context: MangoContext): Promise<void> {
+  if (!context.harnessBaseUrl) {
+    return;
+  }
+  const response = await fetch(
+    `${context.harnessBaseUrl.replace(/\/+$/, '')}/admin/register-lane`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ owner: context.user.publicKey.toBase58() }),
+    },
+  );
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `lane registration failed (${response.status}): ${body || response.statusText}`,
+    );
+  }
+}
+
 async function buildPerpIntentAuth(params: {
   context: MangoContext;
   marketIndex: number;
@@ -105,6 +125,7 @@ async function submitPerpIntentDirect(params: {
   expiresAtSlot?: bigint;
   sendOptions?: SendOptions;
 }): Promise<DirectIntentSubmitResult> {
+  await maybeRegisterDirectLane(params.context);
   const remainingAccounts = await buildCanonicalPerpRemainingAccounts(
     params.context,
     params.marketIndex,

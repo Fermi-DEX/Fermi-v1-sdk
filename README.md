@@ -13,6 +13,7 @@ For build and environment setup, keep the existing repo docs in reach:
 
 - [Build And Setup Notes](./docs/BUILD-SETUP.md)
 - [Full Harness API Reference](./docs/api.md)
+- [Relayer Fee System](./fee_system.md)
 
 ## What It Covers
 
@@ -120,8 +121,21 @@ await submitPerpOrderViaRelayer(relayer, context, {
   side: PerpOrderSide.bid,
   price: 120,
   quantity: 0.01,
+  baseFee: 'AUTO',
 });
 ```
+
+## Relayer Fees
+
+The relayer now uses a separate internal SOL fee ledger per wallet.
+
+- SDK helpers accept `baseFee?: string`
+- use `baseFee: 'AUTO'` unless you intentionally want a hard cap
+- if the relayer replies with `please deposit gas`, transfer SOL to the
+  relayer's `deposit_address` and then call `POST /relay/deposit-fees`
+
+See [fee_system.md](./fee_system.md) for the exact client flow, supported
+formats, and endpoint details.
 
 ## Direct Chain Interactions
 
