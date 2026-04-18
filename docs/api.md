@@ -254,50 +254,289 @@ Errors:
 - `unsafe_deposit`: new on-chain unsafe instruction path was used.
 - `token_deposit_into_existing_fallback`: node is running an older program binary; harness fell back to mint+deposit-into-existing path.
 
-## 2) Relay Ingestion
+## 2) Client Intent Submission
 
-### `POST /ingest/relay-intent`
+Clients submit intents via the **relayer**, not the harness. The relayer
+accepts two transports: gRPC (:9090) and an HTTP bridge (:9092). Both share
+the same payload schema and signing rules.
 
-Ingests a relay-accepted intent event.
+Since the v4 cutover, every accepted intent flows through the commit-reveal
+pipeline on chain:
+
+1. Client signs a v2 intent and submits it via gRPC/HTTP.
+2. Relayer assigns a monotonic `sequence`, computes `commit_hash`, and lands
+   a `commit_market` tx on chain.
+3. Relayer's in-process reveal worker later submits a `reveal_execute_market`
+   tx with the full payload, which dispatches the underlying perp instruction.
+4. Clients watch `/state/queue/<market>` or the harness SSE stream to
+   observe execution.
+
+Clients **do not** build, sign, or track the commit/reveal transactions —
+the relayer handles that. Clients sign only the v2 intent message, same as
+pre-v4.
+
+### gRPC `CtmSequencerRelayer.SubmitIntent` — default port `:9090`
+
+```proto
+syntax = "proto3";
+package ctmsequencer;
+
+message AccountMeta {
+  string pubkey = 1;
+  bool   is_signer = 2;
+  bool   is_writable = 3;
+}
+
+message SubmitIntentRequest {
+  string group               = 1;   // base58 group pubkey
+  string execution_queue     = 2;   // legacy; empty string accepted under v4 route
+  string market              = 3;   // market_index as decimal string ("0", "1", ...)
+  bytes  payload             = 4;   // framed intent payload (see below)
+  repeated AccountMeta remaining_accounts = 5; // optional; relayer derives when empty
+  uint64 min_execute_slot    = 6;   // 0 = asap
+  uint64 expires_at_slot     = 7;   // 0 = never
+  string user_owner          = 8;   // base58
+  string mango_account       = 9;   // base58, must exist under the group
+  bytes  user_signature      = 10;  // 64-byte ed25519 signature (see signing)
+  string base_fee            = 11;  // reserved
+  uint32 intent_version      = 12;  // 2
+  uint32 target_kind         = 13;  // 0 = PerpMarket
+  uint32 target_index        = 14;  // same as `market` for perp
+}
+
+message SubmitIntentResponse {
+  uint64 sequence               = 1; // v4 sequence assigned to this intent
+  string tx_signature           = 2; // on-chain signature of the commit_market tx
+  bytes  user_intent_message    = 3; // 32-byte canonical_user_intent_message_v2 (echo)
+  bytes  ctm_envelope_message   = 4; // 32-byte placeholder for legacy compatibility
+}
+
+service CtmSequencerRelayer {
+  rpc SubmitIntent(SubmitIntentRequest) returns (SubmitIntentResponse);
+}
+```
+
+### HTTP bridge `POST /relay/submit-intent` — default port `:9092`
+
+Convenience wrapper over the gRPC call for browser / non-Rust clients.
 
 Request body:
 
 ```json
 {
-  "event_type": "relay_intent_accepted",
-  "ts_ms": 1772349020285,
-  "group": "...",
-  "execution_queue": "...",
+  "group": "3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi",
+  "execution_queue": "",
   "market": "0",
-  "sequence": "123",
-  "kind": 0,
-  "payload_b64": "...",
+  "payload_b64": "<base64 of the 49-byte framed payload>",
   "remaining_accounts": [
-    {
-      "pubkey": "...",
-      "is_signer": false,
-      "is_writable": true
-    }
+    { "pubkey": "...", "is_signer": false, "is_writable": true }
   ],
-  "min_execute_slot": "100",
+  "min_execute_slot": "0",
   "expires_at_slot": "0",
-  "user_owner": "...",
-  "mango_account": "...",
-  "enqueue_tx_signature": "..."
+  "user_owner": "BvUeT57AWhCjAYfBAQrtuHT24BsBa94uiDhPnVp3kTa7",
+  "mango_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
+  "user_signature_b64": "<base64 of 64-byte ed25519 signature>",
+  "intent_version": 2,
+  "target_kind": 0,
+  "target_index": 0
 }
 ```
+
+Response `200`:
+
+```json
+{
+  "sequence": "1274",
+  "tx_signature": "5qrsaYGu...commit_market_sig...",
+  "user_intent_message_b64": "<base64 of 32-byte canonical hash>",
+  "ctm_envelope_message_b64": "<base64 of 32-byte placeholder>"
+}
+```
+
+Errors:
+- `400` missing/invalid fields
+- `500` gRPC dispatch failure
+
+### Helper endpoint: `GET /relay/config?owner=<pubkey>` — port `:9092`
+
+Returns the group/queue/market/mango_account bundle + execution lanes for
+the given owner so clients can populate the submit request correctly.
+
+```json
+{
+  "group": "3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi",
+  "execution_queue": "5d9v9RF6EZMA4NXnGPN2ikshTgY4FCcJDoFPkjofRtWa",
+  "market": "0",
+  "mango_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
+  "owner_to_mango_account": { "BvUeT57A...": "FGxSs4fio..." },
+  "lanes": [
+    { "name": "lane-0", "remaining_accounts": [ { "pubkey": "...", "is_signer": false, "is_writable": true } ] }
+  ]
+}
+```
+
+### Payload framing
+
+The `payload` field carries a v1-framed variant body:
+
+```
+byte 0       : version = 1
+byte 1       : variant
+bytes 2..4   : flags = 0 (reserved)
+bytes 4..end : variant-specific body (AnchorSerialize)
+```
+
+Supported variants:
+
+| variant | body | notes |
+|---|---|---|
+| `0` `PerpPlaceOrderV2` | 45 B `PerpPlaceOrderV2Payload` | place perp order |
+| `1` `PerpCancelOrder` | 8 B `u64 order_id` | cancel by on-chain order id |
+| `2` `PerpCancelOrderByClientOrderId` | 8 B `u64 client_order_id` | cancel by client id |
+| `3` `PerpCancelAllOrders` | 1 B `u8 limit` | mass cancel |
+| `4` `PerpCancelAllOrdersBySide` | 1 B `side` + 1 B `u8 limit` | one-sided mass cancel |
+
+`PerpPlaceOrderV2Payload` (45 B, AnchorSerialize order):
+
+```
+side                : u8  (0=Bid, 1=Ask)
+price_lots          : i64 (LE)
+max_base_lots       : i64 (LE)
+max_quote_lots      : i64 (LE)
+client_order_id     : u64 (LE)
+order_type          : u8  (0=Limit, 1=IOC, 2=PostOnly, 3=Market, 4=PostOnlySlide)
+self_trade_behavior : u8  (0=DecrementTake, 1=CancelProvide, 2=AbortTransaction)
+reduce_only         : u8  (0/1)
+expiry_timestamp    : u64 (LE; unix seconds; 0=no TTL; non-zero + past = terminal)
+limit               : u8  (max matches per tx)
+```
+
+### Intent signing
+
+Clients sign `canonical_user_intent_message_v2`:
+
+```
+msg_hash = sha256(
+    "mango-v4-user-intent-v2"    // 23 bytes literal
+    || group                      // 32 bytes
+    || mango_account              // 32 bytes
+    || user_owner                 // 32 bytes
+    || [kind=0]                   // u8, CtmWrapped
+    || [target_kind=0]            // u8, PerpMarket
+    || market_index_le            // u16 LE
+    || payload_hash               // 32 bytes = sha256(payload)
+)
+```
+
+`user_signature` is the 64-byte ed25519 signature over `msg_hash`.
+
+For frontend/wallet compatibility the relayer also accepts a signature over
+the lowercase hex utf-8 representation of `msg_hash` (64 ASCII bytes),
+useful for wallets that only sign UTF-8 messages.
+
+### v4 pubkey bundle (devnet)
+
+| Key | Value |
+|---|---|
+| Program ID | `5KaJhG2AxyFbyNorYLtUUmrKXZMMGGWDQUzetQgS3LqB` |
+| Group | `3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi` |
+| USDC mint | `3u3nk3mpo49NceRVsTfuZ43H8AwEXPYyNJfi6CLy2iTp` |
+| USDC decimals | 6 |
+| Market 0 perp_market | `G4mWsvmkcbwfDWs6XhcVHmsP9ZSSs1bzVA7ta7e7Znw3` |
+| Market 1 perp_market | `H2Ydm35VdTJhMAQFgczQMEkapchG1w3JFovbNxzCWQfa` |
+| Market \<N\> queue_root | per-market v4 PDA; derive from `["commit-queue-root", group, market_index_le, shard_id=0]` over program_id |
+
+For the full per-market bundle (bids, asks, event_queue, oracle, queue_root,
+queue_page0), see `/relay/config` or the SDK helper `getV4Bundle()`.
+
+## 3) Relay Event Sink (relayer → harness)
+
+### `POST /ingest/relay-intent`
+
+**Internal endpoint.** Emitted by the relayer to keep the harness optimistic
+state in sync with accepted/submitted/failed intents. Clients should not
+post here; they should submit via gRPC / `/relay/submit-intent` (Section 2).
+
+Two event variants share this endpoint:
+
+#### `relay_intent_accepted` — when an intent passes ingress validation
+
+```json
+{
+  "event_type": "relay_intent_accepted",
+  "ts_ms": 1772349020285,
+  "request_id": "relay-1772349020285-123456",
+  "group": "3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi",
+  "execution_queue": "5d9v9RF6EZMA4NXnGPN2ikshTgY4FCcJDoFPkjofRtWa",
+  "market": "0",
+  "intent_version": 2,
+  "target_kind": 0,
+  "target_index": 0,
+  "accounts_hash": "<32-byte runtime-flag-merged hash, lowercase hex>",
+  "remaining_accounts_source": "relayer_derived",
+  "sequence": "1274",
+  "kind": 0,
+  "payload_b64": "AQAAAABP9gMAAAAAAKcBAAAAAAAA/////////39ku+2PkqEAAAEAAAAAAAAAAAAAFA==",
+  "remaining_accounts": [
+    { "pubkey": "...", "is_signer": false, "is_writable": true }
+  ],
+  "min_execute_slot": "456363733",
+  "expires_at_slot": "0",
+  "user_owner": "BvUeT57AWhCjAYfBAQrtuHT24BsBa94uiDhPnVp3kTa7",
+  "mango_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
+  "enqueue_tx_signature": "5qrsaYGu..."
+}
+```
+
+Under v4, `enqueue_tx_signature` is the `commit_market` tx signature. The
+corresponding `reveal_execute_market` tx lands shortly after via the
+relayer's internal reveal worker and shows up as a `queue_item_processed`
+event on the SSE stream.
+
+#### `relay_intent_status` — lifecycle transitions
+
+```json
+{
+  "event_type": "relay_intent_status",
+  "ts_ms": 1772349020285,
+  "request_id": "relay-1772349020285-123456",
+  "status_code": 2,
+  "status_label": "submitted",
+  "reason": null,
+  "group": "3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi",
+  "execution_queue": "5d9v9RF6EZMA4NXnGPN2ikshTgY4FCcJDoFPkjofRtWa",
+  "market": "0",
+  "intent_version": 2,
+  "target_kind": 0,
+  "target_index": 0,
+  "sequence": "1274",
+  "kind": 0,
+  "user_owner": "...",
+  "mango_account": "...",
+  "tx_signature": "5qrsaYGu...",
+  "grpc_code": null,
+  "queue_process_status": null,
+  "queue_process_status_name": null
+}
+```
+
+`status_code` values:
+- `1` accepted (pre-send)
+- `2` submitted (tx dispatched to RPC; under v4 this is the commit tx)
+- `3` rejected (relayer-side validation failed; `grpc_code` set)
 
 Response `202`:
 
 ```json
 {
   "ok": true,
-  "key": "<group>:<sequence>:<kind>"
+  "key": "<group>:<sequence>:<kind>"   // for accepted
+  // or "<request_id>:<status_code>"   // for status
 }
 ```
 
 Errors:
-- `401` unauthorized (when token is configured and missing/invalid)
+- `401` unauthorized (when `CONTINUUM_HARNESS_RELAY_INGEST_TOKEN` is set and missing/invalid)
 - `500` parse/validation errors
 
 ## 3) State Read API
