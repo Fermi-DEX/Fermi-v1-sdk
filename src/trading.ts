@@ -1,4 +1,7 @@
 import {
+  randomBytes,
+} from 'crypto';
+import {
   AccountMeta,
   SendOptions,
   Transaction,
@@ -13,11 +16,15 @@ import {
 } from '@blockworks-foundation/mango-v4';
 import { MangoContext, buildCanonicalPerpRemainingAccounts } from './context';
 import {
-  buildExecutionQueueEnqueueDirectWithIntentIxs,
+  BigNumberish,
+  buildExecutionQueueV5EnqueueDirectWithIntentIxs,
   buildPerpUserIntentMessageV2,
   encodePerpCancelAllOrdersQueuePayload,
   encodePerpCancelOrderByClientOrderIdQueuePayload,
   encodePerpPlaceOrderV2QueuePayload,
+  findExecutionQueueAuthorityStatePda,
+  findExecutionQueueV5DirectPda,
+  findExecutionQueueV5Pda,
   signIntentMessage,
   UserIntentTargetKind,
 } from './intents';
@@ -62,7 +69,13 @@ export type SubmitPerpCancelAllParams = {
 
 export type DirectIntentSubmitResult = {
   txSignature: string;
+  directIntentMessage: Buffer;
   userIntentMessage: Buffer;
+};
+
+export type DirectSubmitOptions = {
+  sendOptions?: SendOptions;
+  nonce?: BigNumberish;
 };
 
 async function maybeRegisterDirectLane(context: MangoContext): Promise<void> {
@@ -123,22 +136,43 @@ async function submitPerpIntentDirect(params: {
   payload: Uint8Array;
   minExecuteSlot?: bigint;
   expiresAtSlot?: bigint;
+  nonce?: BigNumberish;
   sendOptions?: SendOptions;
 }): Promise<DirectIntentSubmitResult> {
+  if ((params.minExecuteSlot ?? 0n) !== 0n) {
+    throw new Error(
+      'v5 direct enqueue does not support minExecuteSlot; use expiresAtSlot only',
+    );
+  }
   await maybeRegisterDirectLane(params.context);
   const remainingAccounts = await buildCanonicalPerpRemainingAccounts(
     params.context,
     params.marketIndex,
   );
-  const built = buildExecutionQueueEnqueueDirectWithIntentIxs({
+  const built = buildExecutionQueueV5EnqueueDirectWithIntentIxs({
     programId: params.context.programId,
     group: params.context.group.publicKey,
-    executionQueue: params.context.executionQueuePk,
+    authorityState: findExecutionQueueAuthorityStatePda(
+      params.context.programId,
+      params.context.group.publicKey,
+    ),
+    queue: findExecutionQueueV5Pda(
+      params.context.programId,
+      params.context.group.publicKey,
+      params.marketIndex,
+    ),
+    directPool: findExecutionQueueV5DirectPda(
+      params.context.programId,
+      params.context.group.publicKey,
+      params.marketIndex,
+    ),
     marketIndex: params.marketIndex,
     remainingAccounts,
     payload: params.payload,
-    minExecuteSlot: params.minExecuteSlot ?? 0n,
     expiresAtSlot: params.expiresAtSlot ?? 0n,
+    nonce:
+      params.nonce ??
+      BigInt(`0x${randomBytes(8).toString('hex')}`),
     userOwner: params.context.user.publicKey,
     mangoAccount: params.context.mangoAccount.publicKey,
     userSigner: { kind: 'keypair', privateKey: params.context.user.secretKey },
@@ -155,7 +189,8 @@ async function submitPerpIntentDirect(params: {
 
   return {
     txSignature,
-    userIntentMessage: built.userIntentMessage,
+    directIntentMessage: built.directIntentMessage,
+    userIntentMessage: built.directIntentMessage,
   };
 }
 
@@ -208,7 +243,7 @@ export async function submitPerpOrderViaRelayer(
 
 export async function submitPerpOrderDirect(
   context: MangoContext,
-  params: SubmitPerpOrderParams & { sendOptions?: SendOptions },
+  params: SubmitPerpOrderParams & DirectSubmitOptions,
 ): Promise<DirectIntentSubmitResult> {
   const perpMarket = context.group.getPerpMarketByMarketIndex(
     params.marketIndex as PerpMarketIndex,
@@ -235,6 +270,7 @@ export async function submitPerpOrderDirect(
     payload,
     minExecuteSlot: params.minExecuteSlot,
     expiresAtSlot: params.expiresAtSlot,
+    nonce: params.nonce,
     sendOptions: params.sendOptions,
   });
 }
@@ -273,7 +309,7 @@ export async function cancelPerpOrderByClientIdViaRelayer(
 
 export async function cancelPerpOrderByClientIdDirect(
   context: MangoContext,
-  params: SubmitPerpCancelByClientIdParams & { sendOptions?: SendOptions },
+  params: SubmitPerpCancelByClientIdParams & DirectSubmitOptions,
 ): Promise<DirectIntentSubmitResult> {
   const payload = encodePerpCancelOrderByClientOrderIdQueuePayload({
     clientOrderId: BigInt(params.clientOrderId),
@@ -284,6 +320,7 @@ export async function cancelPerpOrderByClientIdDirect(
     payload,
     minExecuteSlot: params.minExecuteSlot,
     expiresAtSlot: params.expiresAtSlot,
+    nonce: params.nonce,
     sendOptions: params.sendOptions,
   });
 }
@@ -322,7 +359,7 @@ export async function cancelAllPerpOrdersViaRelayer(
 
 export async function cancelAllPerpOrdersDirect(
   context: MangoContext,
-  params: SubmitPerpCancelAllParams & { sendOptions?: SendOptions },
+  params: SubmitPerpCancelAllParams & DirectSubmitOptions,
 ): Promise<DirectIntentSubmitResult> {
   const payload = encodePerpCancelAllOrdersQueuePayload({
     limit: params.limit ?? 255,
@@ -333,6 +370,7 @@ export async function cancelAllPerpOrdersDirect(
     payload,
     minExecuteSlot: params.minExecuteSlot,
     expiresAtSlot: params.expiresAtSlot,
+    nonce: params.nonce,
     sendOptions: params.sendOptions,
   });
 }

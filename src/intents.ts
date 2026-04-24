@@ -11,6 +11,11 @@ import {
 export const USER_INTENT_DOMAIN = 'mango-v4-user-intent-v2';
 const USER_INTENT_DOMAIN_BYTES = Buffer.from(USER_INTENT_DOMAIN, 'utf-8');
 const instructionDiscriminatorCache = new Map<string, Buffer>();
+const EXECUTION_QUEUE_V5_SEED = Buffer.from('execution-queue-v5', 'utf-8');
+const EXECUTION_QUEUE_V5_DIRECT_SEED = Buffer.from(
+  'execution-queue-v5-direct',
+  'utf-8',
+);
 
 export enum QueueItemKind {
   CtmWrapped = 0,
@@ -77,6 +82,41 @@ export type BuildExecutionQueueEnqueueDirectWithIntentParams = {
   payload: Uint8Array;
   minExecuteSlot?: BigNumberish;
   expiresAtSlot?: BigNumberish;
+  userOwner: PublicKey;
+  mangoAccount: PublicKey;
+  userSigner: IntentSigner;
+};
+
+export type DirectEnqueueArgsV5Wire = {
+  payload: Uint8Array;
+  kind: number;
+  expiresAtSlot: BigNumberish;
+  nonce: BigNumberish;
+};
+
+export type BuildExecutionQueueV5EnqueueDirectMarketParams = {
+  programId: PublicKey;
+  group: PublicKey;
+  authorityState: PublicKey;
+  queue: PublicKey;
+  directPool: PublicKey;
+  marketIndex: number;
+  args: DirectEnqueueArgsV5Wire;
+  remainingAccounts: AccountMeta[];
+};
+
+export type BuildExecutionQueueV5EnqueueDirectWithIntentParams = {
+  programId: PublicKey;
+  group: PublicKey;
+  authorityState: PublicKey;
+  queue: PublicKey;
+  directPool: PublicKey;
+  marketIndex: number;
+  remainingAccounts: AccountMeta[];
+  payload: Uint8Array;
+  kind?: QueueItemKind;
+  expiresAtSlot?: BigNumberish;
+  nonce: BigNumberish;
   userOwner: PublicKey;
   mangoAccount: PublicKey;
   userSigner: IntentSigner;
@@ -340,6 +380,56 @@ export function hashExecutionQueueAccountsForCtmEnqueue(
   return hashExecutionQueueAccounts(effectiveRemaining);
 }
 
+export function hashExecutionQueueAccountsForV5DirectEnqueue(
+  group: PublicKey,
+  executionQueue: PublicKey,
+  remainingAccounts: AccountMeta[],
+  userOwner: PublicKey,
+): Buffer {
+  const effectiveRemaining = mergeEffectiveRuntimeFlags(remainingAccounts, [
+    { pubkey: group, isSigner: false, isWritable: false },
+    { pubkey: executionQueue, isSigner: false, isWritable: false },
+    { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
+  ]).map((account) =>
+    account.pubkey.equals(userOwner)
+      ? { pubkey: account.pubkey, isSigner: false, isWritable: false }
+      : account,
+  );
+  return hashExecutionQueueAccounts(effectiveRemaining);
+}
+
+export function findExecutionQueueAuthorityStatePda(
+  programId: PublicKey,
+  group: PublicKey,
+): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('queue-authority', 'utf-8'), group.toBuffer()],
+    programId,
+  )[0];
+}
+
+export function findExecutionQueueV5Pda(
+  programId: PublicKey,
+  group: PublicKey,
+  marketIndex: number,
+): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [EXECUTION_QUEUE_V5_SEED, group.toBuffer(), u16ToLe(marketIndex)],
+    programId,
+  )[0];
+}
+
+export function findExecutionQueueV5DirectPda(
+  programId: PublicKey,
+  group: PublicKey,
+  marketIndex: number,
+): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [EXECUTION_QUEUE_V5_DIRECT_SEED, group.toBuffer(), u16ToLe(marketIndex)],
+    programId,
+  )[0];
+}
+
 export function buildPerpUserIntentMessageV2(params: {
   group: PublicKey;
   mangoAccount: PublicKey;
@@ -362,6 +452,40 @@ export function buildPerpUserIntentMessageV2(params: {
     ]),
   );
   return { payloadHash, userIntentMessage };
+}
+
+export function buildExecutionQueueV5DirectIntentMessage(params: {
+  group: PublicKey;
+  mangoAccount: PublicKey;
+  userOwner: PublicKey;
+  kind: number;
+  marketIndex: number;
+  payloadHash: Buffer;
+  accountsHash: Buffer;
+  expiresAtSlot: BigNumberish;
+  nonce: BigNumberish;
+}): Buffer {
+  if (params.payloadHash.length !== 32) {
+    throw new Error('payloadHash must be 32 bytes');
+  }
+  if (params.accountsHash.length !== 32) {
+    throw new Error('accountsHash must be 32 bytes');
+  }
+  return sha256(
+    Buffer.concat([
+      Buffer.from('mango-v5-direct-intent-v1', 'utf-8'),
+      params.group.toBuffer(),
+      params.mangoAccount.toBuffer(),
+      params.userOwner.toBuffer(),
+      u8(params.kind),
+      u8(UserIntentTargetKind.PerpMarket),
+      u16ToLe(params.marketIndex),
+      Buffer.from(params.payloadHash),
+      Buffer.from(params.accountsHash),
+      u64ToLe(params.expiresAtSlot),
+      u64ToLe(params.nonce),
+    ]),
+  );
 }
 
 export function signIntentMessage(
@@ -473,6 +597,97 @@ export function buildExecutionQueueEnqueueDirectWithIntentIxs(
   return {
     envelope,
     userIntentMessage,
+    userIntentPreInstruction,
+    enqueueInstruction,
+    instructions: [userIntentPreInstruction, enqueueInstruction],
+  };
+}
+
+export function buildExecutionQueueV5EnqueueDirectMarketIx(
+  params: BuildExecutionQueueV5EnqueueDirectMarketParams,
+): TransactionInstruction {
+  const data = Buffer.concat([
+    anchorInstructionDiscriminator('execution_queue_v5_enqueue_direct_market'),
+    u16ToLe(params.marketIndex),
+    u32ToLe(params.args.payload.length),
+    Buffer.from(params.args.payload),
+    u8(params.args.kind),
+    u64ToLe(params.args.expiresAtSlot),
+    u64ToLe(params.args.nonce),
+  ]);
+  return new TransactionInstruction({
+    programId: params.programId,
+    keys: [
+      { pubkey: params.group, isSigner: false, isWritable: false },
+      { pubkey: params.authorityState, isSigner: false, isWritable: false },
+      { pubkey: params.queue, isSigner: false, isWritable: false },
+      { pubkey: params.directPool, isSigner: false, isWritable: true },
+      {
+        pubkey: SYSVAR_INSTRUCTIONS_PUBKEY,
+        isSigner: false,
+        isWritable: false,
+      },
+      ...params.remainingAccounts,
+    ],
+    data,
+  });
+}
+
+export function buildExecutionQueueV5EnqueueDirectWithIntentIxs(
+  params: BuildExecutionQueueV5EnqueueDirectWithIntentParams,
+): {
+  directIntentMessage: Buffer;
+  userIntentPreInstruction: TransactionInstruction;
+  enqueueInstruction: TransactionInstruction;
+  instructions: TransactionInstruction[];
+} {
+  const kind = params.kind ?? QueueItemKind.CtmWrapped;
+  if (kind !== QueueItemKind.CtmWrapped) {
+    throw new Error('v5 direct enqueue requires QueueItemKind.CtmWrapped');
+  }
+
+  const payloadHash = hashExecutionQueuePayload(params.payload);
+  const expiresAtSlot = toBigInt(params.expiresAtSlot ?? 0);
+  const accountsHash = hashExecutionQueueAccountsForV5DirectEnqueue(
+    params.group,
+    params.queue,
+    params.remainingAccounts,
+    params.userOwner,
+  );
+  const directIntentMessage = buildExecutionQueueV5DirectIntentMessage({
+    group: params.group,
+    mangoAccount: params.mangoAccount,
+    userOwner: params.userOwner,
+    kind,
+    marketIndex: params.marketIndex,
+    payloadHash,
+    accountsHash,
+    expiresAtSlot,
+    nonce: params.nonce,
+  });
+
+  const userIntentPreInstruction = buildIntentEd25519Instruction(
+    directIntentMessage,
+    params.userSigner,
+  );
+  const enqueueInstruction = buildExecutionQueueV5EnqueueDirectMarketIx({
+    programId: params.programId,
+    group: params.group,
+    authorityState: params.authorityState,
+    queue: params.queue,
+    directPool: params.directPool,
+    marketIndex: params.marketIndex,
+    args: {
+      payload: params.payload,
+      kind,
+      expiresAtSlot,
+      nonce: params.nonce,
+    },
+    remainingAccounts: params.remainingAccounts,
+  });
+
+  return {
+    directIntentMessage,
     userIntentPreInstruction,
     enqueueInstruction,
     instructions: [userIntentPreInstruction, enqueueInstruction],

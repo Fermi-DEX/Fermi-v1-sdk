@@ -22,6 +22,7 @@ For build and environment setup, keep the existing repo docs in reach:
 - Mango bootstrap via `createMangoContext`
 - High-level helpers:
   - `submitPerpOrderViaRelayer`
+  - `submitPerpOrderDirect`
   - `cancelPerpOrderByClientIdViaRelayer`
   - `cancelAllPerpOrdersViaRelayer`
 - Minimal bot runtime:
@@ -55,6 +56,27 @@ The create script uses `GROUP_PK`, `USER_KEYPAIR`, and optional sizing env vars 
 `MANGO_ACCOUNT_NUM` and `MANGO_ACCOUNT_NAME`. The deposit script uses the same base env,
 resolves the Mango account from `MANGO_ACCOUNT_PK` or `MANGO_ACCOUNT_NUM`, and deposits
 `USDC_AMOUNT_UI` using `USDC_MINT` if set or the group's perp-settlement mint otherwise.
+
+## Direct Order Scripts
+
+The SDK now includes a dedicated folder for direct enqueue order flows at
+[src/bin/direct-orders](./src/bin/direct-orders/README.md).
+
+Place a direct perp order with the on-chain v5 direct market path:
+
+```bash
+npm run direct-place-order
+```
+
+Or via the packaged bin:
+
+```bash
+npx continuum-direct-place-order
+```
+
+The direct flow uses `execution_queue_v5_enqueue_direct_market`, derives the
+queue authority / v5 queue / direct pool PDAs from `GROUP_PK` + `PERP_MARKET_INDEX`,
+and optionally registers the owner lane against `HARNESS_URL` before submit.
 
 ## Remote Quoter Setup
 
@@ -154,6 +176,8 @@ That means the remote client can still:
 - combine direct on-chain actions with relayer-submitted intents.
 
 Those direct actions use the upstream `@blockworks-foundation/mango-v4` client.
+The bundled direct-order scripts also layer the SDK's direct-enqueue builders on
+top for one-shot order placement without the relayer.
 
 ## Notes
 
