@@ -1,4 +1,5 @@
 export * from './context';
+export * from './fees';
 export * from './harness';
 export * from './intents';
 export * from './quoter';
