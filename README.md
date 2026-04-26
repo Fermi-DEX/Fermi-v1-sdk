@@ -38,6 +38,9 @@ npm install
 npm run build
 ```
 
+When consumed directly from Git, `npm install` runs the package `prepare` hook
+and builds `dist/` locally. `dist/` is intentionally not committed.
+
 ## Bootstrap Scripts
 
 Create a Mango account for the configured owner:
@@ -78,6 +81,9 @@ The direct flow uses `execution_queue_v5_enqueue_direct_market`, derives the
 queue authority / v5 queue / direct pool PDAs from `GROUP_PK` + `PERP_MARKET_INDEX`,
 and optionally registers the owner lane against `HARNESS_URL` before submit.
 
+For a local smoke template that places and then cancels through direct v5
+fallback, see [examples/direct-v5-smoketest.ts](./examples/direct-v5-smoketest.ts).
+
 ## Remote Quoter Setup
 
 Copy `.env.example` and fill in the actual remote endpoints and account keys:
@@ -92,13 +98,14 @@ Required values:
 - `USER_KEYPAIR`: absolute path to the user keypair JSON, or raw JSON
 - `GROUP_PK`: Mango group public key
 - `MANGO_ACCOUNT_PK`: Mango account to trade with
-- `EXECUTION_QUEUE_PK`: execution queue public key
 - `RELAYER_ADDR`: gRPC relayer address, for example `host:9090`
 
 Optional:
 
 - `HARNESS_URL`: Continuum harness base URL, for example `http://host:9091`
 - `PROGRAM_ID`: override Mango program id
+- `EXECUTION_QUEUE_PK`: legacy/default queue address; current v5 helpers derive the per-market queue PDA from `PROGRAM_ID`, `GROUP_PK`, and `marketIndex`
+- `RELAYER_MAX_FEE_LAMPORTS`: relayer fee cap in lamports, or `AUTO`
 - `COINGECKO_*`: fair-price source tuning
 
 Run the quoter:
@@ -130,7 +137,7 @@ const context = await createMangoContext({
   userKeypair: process.env.USER_KEYPAIR!,
   groupPk: process.env.GROUP_PK!,
   mangoAccountPk: process.env.MANGO_ACCOUNT_PK!,
-  executionQueuePk: process.env.EXECUTION_QUEUE_PK!,
+  programId: process.env.PROGRAM_ID,
 });
 
 const harness = new ContinuumHarnessClient(process.env.HARNESS_URL!);
@@ -143,18 +150,25 @@ await submitPerpOrderViaRelayer(relayer, context, {
   side: PerpOrderSide.bid,
   price: 120,
   quantity: 0.01,
-  baseFee: 'AUTO',
+  maxFeeLamports: 'AUTO',
 });
 ```
+
+For relayed v5 intents, the SDK signs the current `mango-v5-user-intent-v2`
+digest. That digest binds group, Mango account, owner, target market, payload
+hash, canonical account hash, min execute slot, expiry slot, and a u64
+`client_order_id` replay nonce. Place-order helpers use the order
+`clientOrderId` as that nonce unless `intentClientOrderId` is supplied; cancel
+helpers generate a fresh random nonce by default.
 
 ## Relayer Fees
 
 The relayer now uses a separate internal SOL fee ledger per wallet.
 
-- SDK helpers accept `baseFee?: string`
-- use `baseFee: 'AUTO'` unless you intentionally want a hard cap
+- SDK helpers accept `maxFeeLamports?: string`
+- use `maxFeeLamports: 'AUTO'` unless you intentionally want a lamport cap
 - if the relayer replies with `please deposit gas`, transfer SOL to the
-  relayer's `deposit_address` and then call `POST /relay/deposit-fees`
+  relayer's `deposit_address` and then call `POST /fees-deposited`
 
 See [fee_system.md](./fee_system.md) for the exact client flow, supported
 formats, and endpoint details.
@@ -183,4 +197,5 @@ top for one-shot order placement without the relayer.
 
 - The bundled quoter is intentionally minimal. The larger in-repo bot has more operational behaviors, startup funding logic, and deployment-specific assumptions.
 - This SDK keeps the harness read path and relayer write path separate so external users can script their own strategies cleanly.
+- For production-like FIFO testing, use `expiryTimestamp: 0`; nonzero order expiries can be delayed behind earlier queue work.
 - The bootstrap scripts are direct Mango client flows. They do not mint test USDC; for local harness funding use `ContinuumHarnessClient.airdropUsdc()` or `airdropDepositUsdc()` where available.

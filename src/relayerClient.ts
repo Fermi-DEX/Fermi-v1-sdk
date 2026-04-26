@@ -21,9 +21,11 @@ export type SubmitIntentRequest = {
   mango_account: string;
   user_signature: Uint8Array;
   base_fee?: string;
+  max_fee_lamports?: string;
   intent_version?: number;
   target_kind?: number;
   target_index?: number;
+  client_order_id?: string;
 };
 
 export type SubmitIntentResponse = {
@@ -31,6 +33,8 @@ export type SubmitIntentResponse = {
   tx_signature: string;
   user_intent_message: Buffer;
   ctm_envelope_message: Buffer;
+  accepted_latency_ms?: number;
+  optimistic_processed_latency_ms?: number;
   resolved_intent_version?: number;
   resolved_target_kind?: number;
   resolved_target_index?: number;

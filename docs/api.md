@@ -3,6 +3,7 @@
 This document is the end-user API reference for the local/testnet/mainnet **Continuum State Harness** service.
 
 The harness provides a single HTTP/SSE surface for:
+
 - optimistic state (relay-accepted intents + confirmed chain state),
 - confirmed state (executed on-chain queue outcomes only),
 - queue health, divergence diagnostics, and replay tooling.
@@ -22,6 +23,7 @@ http://127.0.0.1:9091
 ```
 
 Set via:
+
 - `CONTINUUM_HARNESS_BIND_ADDR`
 
 ### Exact Localhost Endpoints Requested
@@ -138,6 +140,7 @@ continuum_harness_sse_clients 0
 Lists recent divergence events.
 
 Query params:
+
 - `limit` optional, default `200`
 
 Response `200`:
@@ -188,6 +191,7 @@ Request body:
 ```
 
 Alternative owner sources:
+
 - `?owner=<pubkey>` query param
 - `x-wallet-pubkey: <pubkey>` header
 
@@ -208,6 +212,7 @@ Response `200`:
 ```
 
 Errors:
+
 - `400` invalid input, amount limit exceeded, or endpoint disabled
 - `500` mint/send runtime error
 
@@ -227,6 +232,7 @@ Request body:
 ```
 
 Notes:
+
 - `ui_amount` is fixed by harness config (`CONTINUUM_HARNESS_AIRDROP_DEPOSIT_UI_AMOUNT`, default `1000`).
 - If `mango_account` is omitted, the first Mango account for `owner` in the configured group is used.
 
@@ -247,10 +253,12 @@ Response `200`:
 ```
 
 Errors:
+
 - `400` invalid/missing owner, account mismatch, endpoint disabled, or fixed-amount mismatch
 - `500` runtime failure
 
 `execution_path` values:
+
 - `unsafe_deposit`: new on-chain unsafe instruction path was used.
 - `token_deposit_into_existing_fallback`: node is running an older program binary; harness fell back to mint+deposit-into-existing path.
 
@@ -260,10 +268,10 @@ Clients submit intents via the **relayer**, not the harness. The relayer
 accepts two transports: gRPC (:9090) and an HTTP bridge (:9092). Both share
 the same payload schema and signing rules.
 
-Since the v4 cutover, every accepted intent flows through the commit-reveal
+Since the v5 cutover, every accepted intent flows through the commit-reveal
 pipeline on chain:
 
-1. Client signs a v2 intent and submits it via gRPC/HTTP.
+1. Client signs a v5 intent and submits it via gRPC/HTTP.
 2. Relayer assigns a monotonic `sequence`, computes `commit_hash`, and lands
    a `commit_market` tx on chain.
 3. Relayer's in-process reveal worker later submits a `reveal_execute_market`
@@ -272,8 +280,8 @@ pipeline on chain:
    observe execution.
 
 Clients **do not** build, sign, or track the commit/reveal transactions —
-the relayer handles that. Clients sign only the v2 intent message, same as
-pre-v4.
+the relayer handles that. Clients sign only the current
+`mango-v5-user-intent-v2` intent digest.
 
 ### gRPC `CtmSequencerRelayer.SubmitIntent` — default port `:9090`
 
@@ -298,17 +306,21 @@ message SubmitIntentRequest {
   string user_owner          = 8;   // base58
   string mango_account       = 9;   // base58, must exist under the group
   bytes  user_signature      = 10;  // 64-byte ed25519 signature (see signing)
-  string base_fee            = 11;  // reserved
+  string base_fee            = 11;  // legacy fee-cap alias
   uint32 intent_version      = 12;  // 2
   uint32 target_kind         = 13;  // 0 = PerpMarket
   uint32 target_index        = 14;  // same as `market` for perp
+  uint64 client_order_id     = 15;  // user replay nonce/randomizer
+  string max_fee_lamports    = 16;  // "auto" or integer lamports
 }
 
 message SubmitIntentResponse {
   uint64 sequence               = 1; // v4 sequence assigned to this intent
   string tx_signature           = 2; // on-chain signature of the commit_market tx
-  bytes  user_intent_message    = 3; // 32-byte canonical_user_intent_message_v2 (echo)
+  bytes  user_intent_message    = 3; // 32-byte canonical_user_intent_message_v3 (echo)
   bytes  ctm_envelope_message   = 4; // 32-byte placeholder for legacy compatibility
+  double accepted_latency_ms    = 5;
+  double optimistic_processed_latency_ms = 6;
 }
 
 service CtmSequencerRelayer {
@@ -338,7 +350,9 @@ Request body:
   "user_signature_b64": "<base64 of 64-byte ed25519 signature>",
   "intent_version": 2,
   "target_kind": 0,
-  "target_index": 0
+  "target_index": 0,
+  "client_order_id": "1775489806394",
+  "max_fee_lamports": "AUTO"
 }
 ```
 
@@ -354,6 +368,7 @@ Response `200`:
 ```
 
 Errors:
+
 - `400` missing/invalid fields
 - `500` gRPC dispatch failure
 
@@ -370,7 +385,12 @@ the given owner so clients can populate the submit request correctly.
   "mango_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
   "owner_to_mango_account": { "BvUeT57A...": "FGxSs4fio..." },
   "lanes": [
-    { "name": "lane-0", "remaining_accounts": [ { "pubkey": "...", "is_signer": false, "is_writable": true } ] }
+    {
+      "name": "lane-0",
+      "remaining_accounts": [
+        { "pubkey": "...", "is_signer": false, "is_writable": true }
+      ]
+    }
   ]
 }
 ```
@@ -388,13 +408,13 @@ bytes 4..end : variant-specific body (AnchorSerialize)
 
 Supported variants:
 
-| variant | body | notes |
-|---|---|---|
-| `0` `PerpPlaceOrderV2` | 45 B `PerpPlaceOrderV2Payload` | place perp order |
-| `1` `PerpCancelOrder` | 8 B `u64 order_id` | cancel by on-chain order id |
-| `2` `PerpCancelOrderByClientOrderId` | 8 B `u64 client_order_id` | cancel by client id |
-| `3` `PerpCancelAllOrders` | 1 B `u8 limit` | mass cancel |
-| `4` `PerpCancelAllOrdersBySide` | 1 B `side` + 1 B `u8 limit` | one-sided mass cancel |
+| variant                              | body                           | notes                       |
+| ------------------------------------ | ------------------------------ | --------------------------- |
+| `0` `PerpPlaceOrderV2`               | 45 B `PerpPlaceOrderV2Payload` | place perp order            |
+| `1` `PerpCancelOrder`                | 8 B `u64 order_id`             | cancel by on-chain order id |
+| `2` `PerpCancelOrderByClientOrderId` | 8 B `u64 client_order_id`      | cancel by client id         |
+| `3` `PerpCancelAllOrders`            | 1 B `u8 limit`                 | mass cancel                 |
+| `4` `PerpCancelAllOrdersBySide`      | 1 B `side` + 1 B `u8 limit`    | one-sided mass cancel       |
 
 `PerpPlaceOrderV2Payload` (45 B, AnchorSerialize order):
 
@@ -413,11 +433,11 @@ limit               : u8  (max matches per tx)
 
 ### Intent signing
 
-Clients sign `canonical_user_intent_message_v2`:
+Clients sign `canonical_user_intent_message_v3`:
 
 ```
 msg_hash = sha256(
-    "mango-v4-user-intent-v2"    // 23 bytes literal
+    "mango-v5-user-intent-v2"    // literal
     || group                      // 32 bytes
     || mango_account              // 32 bytes
     || user_owner                 // 32 bytes
@@ -425,25 +445,39 @@ msg_hash = sha256(
     || [target_kind=0]            // u8, PerpMarket
     || market_index_le            // u16 LE
     || payload_hash               // 32 bytes = sha256(payload)
+    || accounts_hash              // 32 bytes = canonical account hash
+    || min_execute_slot_le        // u64 LE
+    || expires_at_slot_le         // u64 LE
+    || client_order_id_le         // u64 LE replay nonce/randomizer
 )
 ```
 
 `user_signature` is the 64-byte ed25519 signature over `msg_hash`.
 
+For place-order helpers, the SDK uses the order `clientOrderId` as
+`client_order_id` unless `intentClientOrderId` is supplied. Cancel helpers
+generate a fresh random u64 replay nonce by default.
+
 For frontend/wallet compatibility the relayer also accepts a signature over
 the lowercase hex utf-8 representation of `msg_hash` (64 ASCII bytes),
 useful for wallets that only sign UTF-8 messages.
 
-### v4 pubkey bundle (devnet)
+### Deployment Pubkey Bundle
 
-| Key | Value |
-|---|---|
-| Program ID | `5KaJhG2AxyFbyNorYLtUUmrKXZMMGGWDQUzetQgS3LqB` |
-| Group | `3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi` |
-| USDC mint | `3u3nk3mpo49NceRVsTfuZ43H8AwEXPYyNJfi6CLy2iTp` |
-| USDC decimals | 6 |
-| Market 0 perp_market | `G4mWsvmkcbwfDWs6XhcVHmsP9ZSSs1bzVA7ta7e7Znw3` |
-| Market 1 perp_market | `H2Ydm35VdTJhMAQFgczQMEkapchG1w3JFovbNxzCWQfa` |
+Do not hardcode old devnet bundles in production clients. Read the active
+group, market, and queue addresses from your operator run config or from the
+gateway config endpoint for the environment you are targeting.
+
+Historical example only:
+
+| Key                     | Value                                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Program ID              | `5KaJhG2AxyFbyNorYLtUUmrKXZMMGGWDQUzetQgS3LqB`                                                             |
+| Group                   | `3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi`                                                             |
+| USDC mint               | `3u3nk3mpo49NceRVsTfuZ43H8AwEXPYyNJfi6CLy2iTp`                                                             |
+| USDC decimals           | 6                                                                                                          |
+| Market 0 perp_market    | `G4mWsvmkcbwfDWs6XhcVHmsP9ZSSs1bzVA7ta7e7Znw3`                                                             |
+| Market 1 perp_market    | `H2Ydm35VdTJhMAQFgczQMEkapchG1w3JFovbNxzCWQfa`                                                             |
 | Market \<N\> queue_root | per-market v4 PDA; derive from `["commit-queue-root", group, market_index_le, shard_id=0]` over program_id |
 
 For the full per-market bundle (bids, asks, event_queue, oracle, queue_root,
@@ -521,6 +555,7 @@ event on the SSE stream.
 ```
 
 `status_code` values:
+
 - `1` accepted (pre-send)
 - `2` submitted (tx dispatched to RPC; under v4 this is the commit tx)
 - `3` rejected (relayer-side validation failed; `grpc_code` set)
@@ -530,12 +565,13 @@ Response `202`:
 ```json
 {
   "ok": true,
-  "key": "<group>:<sequence>:<kind>"   // for accepted
+  "key": "<group>:<sequence>:<kind>" // for accepted
   // or "<request_id>:<status_code>"   // for status
 }
 ```
 
 Errors:
+
 - `401` unauthorized (when `CONTINUUM_HARNESS_RELAY_INGEST_TOKEN` is set and missing/invalid)
 - `500` parse/validation errors
 
@@ -546,6 +582,7 @@ Errors:
 Returns market cards for one or more markets.
 
 Query params:
+
 - `markets` optional comma-separated subset
 - `view` optional (`optimistic` default)
 - `depth` optional orderbook summary depth (`10` default)
@@ -643,9 +680,7 @@ Response `200`:
   },
   "data": {
     "market": "0",
-    "bids": [
-      { "price_lots": "100", "base_lots": "2" }
-    ],
+    "bids": [{ "price_lots": "100", "base_lots": "2" }],
     "asks": [],
     "open_orders": [],
     "watermarks": {
@@ -729,6 +764,7 @@ Response `200`:
 Returns open orders for a market, optionally filtered by owner.
 
 Query params:
+
 - `owner` optional
 - `view` optional (`optimistic` default)
 
@@ -762,6 +798,7 @@ Response `200`:
 Returns recent replayed trades with optional market and owner filters.
 
 Query params:
+
 - `market` optional, omit to stream/query all markets
 - `owner` optional owner pubkey filter
 - `view` optional (`optimistic` default)
@@ -923,6 +960,7 @@ Response `200`:
 Legacy raw harness SSE stream.
 
 Events emitted:
+
 - `connected`
 - `relay_intent_accepted`
 - `queue_item_enqueued`
@@ -935,6 +973,7 @@ Events emitted:
 Trade SSE stream.
 
 Behavior:
+
 - omitting `market` streams all markets
 - initial `snapshot` event returns the last `backfill_n` trades
 - subsequent `trade` events emit new replayed trades only
@@ -957,6 +996,7 @@ data: {"trade_id":"...","market":"0", ...}
 Frontend-oriented SSE stream for owner and/or market slices.
 
 Behavior:
+
 - requires at least one of `owner`, `mango_account`, or `market`
 - emits `snapshot` on connect
 - emits `account_update` when the owner slice changes
@@ -965,6 +1005,7 @@ Behavior:
 - `orderbook=full` enables `orderbook` in the market slice
 
 Current limitation:
+
 - `account_metrics` is intentionally stubbed for now:
   `{"status":"stub","source":"pending-subtree",...}`
 
@@ -1000,6 +1041,7 @@ Generic error payload from handler exceptions:
 ```
 
 Common statuses:
+
 - `401`: unauthorized (`/ingest/relay-intent` token mismatch)
 - `404`: path not found
 - `500`: validation/parsing/runtime errors
@@ -1007,6 +1049,7 @@ Common statuses:
 ## TypeScript Client Wrapper
 
 A typed client wrapper is available in:
+
 - `ts/client/src/continuumHarnessClient.ts`
 
 Example:
@@ -1020,7 +1063,11 @@ const health = await client.healthz();
 const market = await client.getMarketState('0', 'optimistic');
 const user = await client.getUserState('OWNER_PUBKEY', 'confirmed');
 const balances = await client.getBalances('OWNER_PUBKEY', 'optimistic');
-const trades = await client.getTrades({ market: '0', view: 'confirmed', limit: 200 });
+const trades = await client.getTrades({
+  market: '0',
+  view: 'confirmed',
+  limit: 200,
+});
 const candles = await client.getCandles({
   market: '0',
   view: 'confirmed',

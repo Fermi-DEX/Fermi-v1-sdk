@@ -23,6 +23,13 @@ message SubmitIntentRequest {
   uint32 intent_version = 12;
   uint32 target_kind = 13;
   uint32 target_index = 14;
+  // 8-byte user randomizer bound into canonical_user_intent_v3.
+  // 0 is reserved for non-user-signed/admin/sweep traffic; user-signed
+  // intents should set a unique random value per intent.
+  uint64 client_order_id = 15;
+  // Relayer-local fee cap in lamports. Empty or "auto" means the caller
+  // accepts the prevailing quoted fee. base_fee is kept as a legacy alias.
+  string max_fee_lamports = 16;
 }
 
 message SubmitIntentResponse {
@@ -30,6 +37,8 @@ message SubmitIntentResponse {
   string tx_signature = 2;
   bytes user_intent_message = 3;
   bytes ctm_envelope_message = 4;
+  double accepted_latency_ms = 5;
+  double optimistic_processed_latency_ms = 6;
 }
 
 service CtmSequencerRelayer {

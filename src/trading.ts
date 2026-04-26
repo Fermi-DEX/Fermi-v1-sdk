@@ -1,6 +1,4 @@
-import {
-  randomBytes,
-} from 'crypto';
+import { randomBytes } from 'crypto';
 import {
   AccountMeta,
   SendOptions,
@@ -18,13 +16,14 @@ import { MangoContext, buildCanonicalPerpRemainingAccounts } from './context';
 import {
   BigNumberish,
   buildExecutionQueueV5EnqueueDirectWithIntentIxs,
-  buildPerpUserIntentMessageV2,
+  buildPerpUserIntentMessageV3,
   encodePerpCancelAllOrdersQueuePayload,
   encodePerpCancelOrderByClientOrderIdQueuePayload,
   encodePerpPlaceOrderV2QueuePayload,
   findExecutionQueueAuthorityStatePda,
   findExecutionQueueV5DirectPda,
   findExecutionQueueV5Pda,
+  hashExecutionQueueAccountsForCtmEnqueue,
   signIntentMessage,
   UserIntentTargetKind,
 } from './intents';
@@ -40,7 +39,8 @@ export type SubmitPerpOrderParams = {
   price: number;
   quantity: number;
   maxQuoteQuantity?: number;
-  clientOrderId?: number;
+  clientOrderId?: BigNumberish;
+  intentClientOrderId?: BigNumberish;
   orderType?: PerpOrderType;
   selfTradeBehavior?: PerpSelfTradeBehavior;
   reduceOnly?: boolean;
@@ -49,22 +49,27 @@ export type SubmitPerpOrderParams = {
   minExecuteSlot?: bigint;
   expiresAtSlot?: bigint;
   baseFee?: string;
+  maxFeeLamports?: string;
 };
 
 export type SubmitPerpCancelByClientIdParams = {
   marketIndex: number;
-  clientOrderId: number;
+  clientOrderId: BigNumberish;
+  intentClientOrderId?: BigNumberish;
   minExecuteSlot?: bigint;
   expiresAtSlot?: bigint;
   baseFee?: string;
+  maxFeeLamports?: string;
 };
 
 export type SubmitPerpCancelAllParams = {
   marketIndex: number;
   limit?: number;
+  intentClientOrderId?: BigNumberish;
   minExecuteSlot?: bigint;
   expiresAtSlot?: bigint;
   baseFee?: string;
+  maxFeeLamports?: string;
 };
 
 export type DirectIntentSubmitResult = {
@@ -77,6 +82,38 @@ export type DirectSubmitOptions = {
   sendOptions?: SendOptions;
   nonce?: BigNumberish;
 };
+
+const U64_MAX = (1n << 64n) - 1n;
+
+function toBigInt(value: BigNumberish): bigint {
+  if (typeof value === 'bigint') {
+    return value;
+  }
+  if (!Number.isSafeInteger(value)) {
+    throw new Error('number inputs must be safe integers');
+  }
+  return BigInt(value);
+}
+
+function u64String(value: BigNumberish): string {
+  const parsed = toBigInt(value);
+  if (parsed < 0 || parsed > U64_MAX) {
+    throw new Error(`u64 out of range: ${parsed.toString()}`);
+  }
+  return parsed.toString();
+}
+
+function randomU64(): bigint {
+  return BigInt(`0x${randomBytes(8).toString('hex')}`);
+}
+
+function executionQueueForMarket(context: MangoContext, marketIndex: number) {
+  return findExecutionQueueV5Pda(
+    context.programId,
+    context.group.publicKey,
+    marketIndex,
+  );
+}
 
 async function maybeRegisterDirectLane(context: MangoContext): Promise<void> {
   if (!context.harnessBaseUrl) {
@@ -102,6 +139,10 @@ async function buildPerpIntentAuth(params: {
   context: MangoContext;
   marketIndex: number;
   payload: Uint8Array;
+  executionQueue: AccountMeta['pubkey'];
+  minExecuteSlot?: bigint;
+  expiresAtSlot?: bigint;
+  clientOrderId: BigNumberish;
 }): Promise<{
   remainingAccounts: AccountMeta[];
   userIntentMessage: Buffer;
@@ -111,12 +152,21 @@ async function buildPerpIntentAuth(params: {
     params.context,
     params.marketIndex,
   );
-  const { userIntentMessage } = buildPerpUserIntentMessageV2({
+  const accountsHash = hashExecutionQueueAccountsForCtmEnqueue(
+    params.context.group.publicKey,
+    params.executionQueue,
+    remainingAccounts,
+  );
+  const { userIntentMessage } = buildPerpUserIntentMessageV3({
     group: params.context.group.publicKey,
     mangoAccount: params.context.mangoAccount.publicKey,
     userOwner: params.context.user.publicKey,
     marketIndex: params.marketIndex,
     payload: params.payload,
+    accountsHash,
+    minExecuteSlot: params.minExecuteSlot ?? 0n,
+    expiresAtSlot: params.expiresAtSlot ?? 0n,
+    clientOrderId: params.clientOrderId,
   });
   const userSignature = signIntentMessage(
     params.context.user.secretKey,
@@ -170,9 +220,7 @@ async function submitPerpIntentDirect(params: {
     remainingAccounts,
     payload: params.payload,
     expiresAtSlot: params.expiresAtSlot ?? 0n,
-    nonce:
-      params.nonce ??
-      BigInt(`0x${randomBytes(8).toString('hex')}`),
+    nonce: params.nonce ?? randomU64(),
     userOwner: params.context.user.publicKey,
     mangoAccount: params.context.mangoAccount.publicKey,
     userSigner: { kind: 'keypair', privateKey: params.context.user.secretKey },
@@ -199,6 +247,9 @@ export async function submitPerpOrderViaRelayer(
   context: MangoContext,
   params: SubmitPerpOrderParams,
 ): Promise<SubmitIntentResponse> {
+  const clientOrderId = params.clientOrderId ?? randomU64();
+  const intentClientOrderId = params.intentClientOrderId ?? clientOrderId;
+  const executionQueue = executionQueueForMarket(context, params.marketIndex);
   const perpMarket = context.group.getPerpMarketByMarketIndex(
     params.marketIndex as PerpMarketIndex,
   );
@@ -209,7 +260,7 @@ export async function submitPerpOrderViaRelayer(
     maxQuoteLots: params.maxQuoteQuantity
       ? BigInt(perpMarket.uiQuoteToLots(params.maxQuoteQuantity).toString())
       : BigInt(I64_MAX_BN.toString()),
-    clientOrderId: params.clientOrderId ?? Date.now(),
+    clientOrderId,
     orderType: params.orderType ?? PerpOrderType.postOnlySlide,
     selfTradeBehavior:
       params.selfTradeBehavior ?? PerpSelfTradeBehavior.decrementTake,
@@ -221,11 +272,15 @@ export async function submitPerpOrderViaRelayer(
     context,
     marketIndex: params.marketIndex,
     payload,
+    executionQueue,
+    minExecuteSlot: params.minExecuteSlot,
+    expiresAtSlot: params.expiresAtSlot,
+    clientOrderId: intentClientOrderId,
   });
 
   return await relayer.submitIntent({
     group: context.group.publicKey.toBase58(),
-    execution_queue: context.executionQueuePk.toBase58(),
+    execution_queue: executionQueue.toBase58(),
     market: `${params.marketIndex}`,
     payload,
     remaining_accounts: signed.remainingAccounts.map(toRelayerAccountMeta),
@@ -235,9 +290,11 @@ export async function submitPerpOrderViaRelayer(
     mango_account: context.mangoAccount.publicKey.toBase58(),
     user_signature: Buffer.from(signed.userSignature),
     base_fee: params.baseFee,
+    max_fee_lamports: params.maxFeeLamports ?? params.baseFee,
     intent_version: 2,
     target_kind: UserIntentTargetKind.PerpMarket,
     target_index: params.marketIndex,
+    client_order_id: u64String(intentClientOrderId),
   });
 }
 
@@ -245,6 +302,7 @@ export async function submitPerpOrderDirect(
   context: MangoContext,
   params: SubmitPerpOrderParams & DirectSubmitOptions,
 ): Promise<DirectIntentSubmitResult> {
+  const clientOrderId = params.clientOrderId ?? randomU64();
   const perpMarket = context.group.getPerpMarketByMarketIndex(
     params.marketIndex as PerpMarketIndex,
   );
@@ -255,7 +313,7 @@ export async function submitPerpOrderDirect(
     maxQuoteLots: params.maxQuoteQuantity
       ? BigInt(perpMarket.uiQuoteToLots(params.maxQuoteQuantity).toString())
       : BigInt(I64_MAX_BN.toString()),
-    clientOrderId: params.clientOrderId ?? Date.now(),
+    clientOrderId,
     orderType: params.orderType ?? PerpOrderType.postOnlySlide,
     selfTradeBehavior:
       params.selfTradeBehavior ?? PerpSelfTradeBehavior.decrementTake,
@@ -280,18 +338,24 @@ export async function cancelPerpOrderByClientIdViaRelayer(
   context: MangoContext,
   params: SubmitPerpCancelByClientIdParams,
 ): Promise<SubmitIntentResponse> {
+  const intentClientOrderId = params.intentClientOrderId ?? randomU64();
+  const executionQueue = executionQueueForMarket(context, params.marketIndex);
   const payload = encodePerpCancelOrderByClientOrderIdQueuePayload({
-    clientOrderId: BigInt(params.clientOrderId),
+    clientOrderId: params.clientOrderId,
   });
   const signed = await buildPerpIntentAuth({
     context,
     marketIndex: params.marketIndex,
     payload,
+    executionQueue,
+    minExecuteSlot: params.minExecuteSlot,
+    expiresAtSlot: params.expiresAtSlot,
+    clientOrderId: intentClientOrderId,
   });
 
   return await relayer.submitIntent({
     group: context.group.publicKey.toBase58(),
-    execution_queue: context.executionQueuePk.toBase58(),
+    execution_queue: executionQueue.toBase58(),
     market: `${params.marketIndex}`,
     payload,
     remaining_accounts: signed.remainingAccounts.map(toRelayerAccountMeta),
@@ -301,9 +365,11 @@ export async function cancelPerpOrderByClientIdViaRelayer(
     mango_account: context.mangoAccount.publicKey.toBase58(),
     user_signature: Buffer.from(signed.userSignature),
     base_fee: params.baseFee,
+    max_fee_lamports: params.maxFeeLamports ?? params.baseFee,
     intent_version: 2,
     target_kind: UserIntentTargetKind.PerpMarket,
     target_index: params.marketIndex,
+    client_order_id: u64String(intentClientOrderId),
   });
 }
 
@@ -312,7 +378,7 @@ export async function cancelPerpOrderByClientIdDirect(
   params: SubmitPerpCancelByClientIdParams & DirectSubmitOptions,
 ): Promise<DirectIntentSubmitResult> {
   const payload = encodePerpCancelOrderByClientOrderIdQueuePayload({
-    clientOrderId: BigInt(params.clientOrderId),
+    clientOrderId: params.clientOrderId,
   });
   return await submitPerpIntentDirect({
     context,
@@ -330,6 +396,8 @@ export async function cancelAllPerpOrdersViaRelayer(
   context: MangoContext,
   params: SubmitPerpCancelAllParams,
 ): Promise<SubmitIntentResponse> {
+  const intentClientOrderId = params.intentClientOrderId ?? randomU64();
+  const executionQueue = executionQueueForMarket(context, params.marketIndex);
   const payload = encodePerpCancelAllOrdersQueuePayload({
     limit: params.limit ?? 255,
   });
@@ -337,11 +405,15 @@ export async function cancelAllPerpOrdersViaRelayer(
     context,
     marketIndex: params.marketIndex,
     payload,
+    executionQueue,
+    minExecuteSlot: params.minExecuteSlot,
+    expiresAtSlot: params.expiresAtSlot,
+    clientOrderId: intentClientOrderId,
   });
 
   return await relayer.submitIntent({
     group: context.group.publicKey.toBase58(),
-    execution_queue: context.executionQueuePk.toBase58(),
+    execution_queue: executionQueue.toBase58(),
     market: `${params.marketIndex}`,
     payload,
     remaining_accounts: signed.remainingAccounts.map(toRelayerAccountMeta),
@@ -351,9 +423,11 @@ export async function cancelAllPerpOrdersViaRelayer(
     mango_account: context.mangoAccount.publicKey.toBase58(),
     user_signature: Buffer.from(signed.userSignature),
     base_fee: params.baseFee,
+    max_fee_lamports: params.maxFeeLamports ?? params.baseFee,
     intent_version: 2,
     target_kind: UserIntentTargetKind.PerpMarket,
     target_index: params.marketIndex,
+    client_order_id: u64String(intentClientOrderId),
   });
 }
 

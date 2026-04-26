@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { PerpOrderSide, PerpOrderType } from '@blockworks-foundation/mango-v4';
 import { MangoContext } from './context';
 import { ContinuumHarnessClient, MarketState } from './harness';
@@ -17,6 +18,7 @@ export type RelayerPerpQuoterBotConfig = {
   intervalMs: number;
   orderType?: PerpOrderType;
   maxQuoteQuantity?: number;
+  maxFeeLamports?: string;
   log?: (message: string, fields?: Record<string, unknown>) => void;
 };
 
@@ -54,6 +56,10 @@ export class CoinGeckoFairPriceProvider {
     this.lastFetchMs = now;
     return price;
   }
+}
+
+function randomU64(): bigint {
+  return BigInt(`0x${randomBytes(8).toString('hex')}`);
 }
 
 export class RelayerPerpQuoterBot {
@@ -101,6 +107,7 @@ export class RelayerPerpQuoterBot {
       await cancelPerpOrderByClientIdViaRelayer(this.relayer, this.context, {
         marketIndex: this.config.marketIndex,
         clientOrderId: this.lastClientOrderId,
+        maxFeeLamports: this.config.maxFeeLamports,
       });
     }
 
@@ -112,7 +119,9 @@ export class RelayerPerpQuoterBot {
       quantity: this.config.size,
       maxQuoteQuantity: this.config.maxQuoteQuantity,
       clientOrderId,
+      intentClientOrderId: randomU64(),
       orderType: this.config.orderType ?? PerpOrderType.postOnlySlide,
+      maxFeeLamports: this.config.maxFeeLamports,
     });
     this.lastClientOrderId = clientOrderId;
 

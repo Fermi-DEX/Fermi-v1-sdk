@@ -4,11 +4,11 @@ import {
   PerpOrderSide,
   PerpOrderType,
 } from '@blockworks-foundation/mango-v4';
-import { createMangoContext } from './src/context';
+import { createMangoContext } from '../src/context';
 import {
   cancelAllPerpOrdersDirect,
   submitPerpOrderDirect,
-} from './src/trading';
+} from '../src/trading';
 
 type E2EConfig = {
   cluster: 'devnet' | 'mainnet-beta' | 'localnet';
@@ -27,7 +27,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForQueueDrain(baseUrl: string, timeoutMs: number): Promise<void> {
+async function waitForQueueDrain(
+  baseUrl: string,
+  timeoutMs: number,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const response = await fetch(`${baseUrl}/state/queue/0?view=confirmed`);
@@ -38,7 +41,8 @@ async function waitForQueueDrain(baseUrl: string, timeoutMs: number): Promise<vo
       pending_count?: number;
       data?: { pending_count?: number };
     };
-    const pendingCount = queueState.data?.pending_count ?? queueState.pending_count ?? 0;
+    const pendingCount =
+      queueState.data?.pending_count ?? queueState.pending_count ?? 0;
     if (pendingCount === 0) {
       return;
     }
@@ -51,7 +55,9 @@ async function loadOpenOrderCount(
   context: Awaited<ReturnType<typeof createMangoContext>>,
   marketIndex: number,
 ): Promise<number> {
-  const fresh = await context.client.getMangoAccount(context.mangoAccount.publicKey);
+  const fresh = await context.client.getMangoAccount(
+    context.mangoAccount.publicKey,
+  );
   const orders = await fresh.loadPerpOpenOrdersForMarket(
     context.client,
     context.group,

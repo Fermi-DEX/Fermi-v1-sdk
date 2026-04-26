@@ -24,7 +24,11 @@ export type MangoContextConfig = {
   userKeypair: string | number[] | Uint8Array;
   groupPk: string | PublicKey;
   mangoAccountPk: string | PublicKey;
-  executionQueuePk: string | PublicKey;
+  /**
+   * Legacy/default execution queue address. Current v5 helpers derive the
+   * per-market queue PDA from `(programId, group, marketIndex)`.
+   */
+  executionQueuePk?: string | PublicKey;
   programId?: string | PublicKey;
   commitment?: Commitment;
 };
@@ -37,7 +41,7 @@ export type MangoContext = {
   client: MangoClient;
   group: Group;
   mangoAccount: MangoAccount;
-  executionQueuePk: PublicKey;
+  executionQueuePk?: PublicKey;
   programId: PublicKey;
   harnessBaseUrl?: string;
 };
@@ -91,7 +95,10 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
     client,
     group,
     mangoAccount,
-    executionQueuePk: toPublicKey(config.executionQueuePk),
+    executionQueuePk:
+      config.executionQueuePk !== undefined
+        ? toPublicKey(config.executionQueuePk)
+        : undefined,
     programId,
     harnessBaseUrl: config.harnessBaseUrl,
   };

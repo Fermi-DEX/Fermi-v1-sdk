@@ -3,7 +3,12 @@
 import 'dotenv/config';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import { Cluster, Connection, Keypair } from '@solana/web3.js';
-import { Group, MANGO_V4_ID, MangoAccount, MangoClient } from '@blockworks-foundation/mango-v4';
+import {
+  Group,
+  MANGO_V4_ID,
+  MangoAccount,
+  MangoClient,
+} from '@blockworks-foundation/mango-v4';
 import { loadKeypair, toPublicKey } from '../context';
 
 function requiredEnv(name: string): string {
@@ -41,7 +46,10 @@ async function createClientAndGroup(): Promise<{
 }> {
   const cluster = (process.env.CLUSTER || 'devnet') as Cluster;
   const user = loadKeypair(requiredEnv('USER_KEYPAIR'));
-  const connection = new Connection(requiredEnv('CLUSTER_URL'), commitmentFromEnv());
+  const connection = new Connection(
+    requiredEnv('CLUSTER_URL'),
+    commitmentFromEnv(),
+  );
   const provider = new AnchorProvider(
     connection,
     new Wallet(user),
@@ -75,7 +83,9 @@ async function resolveCreatedAccount(params: {
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error(
-    `created mango account not found for owner=${params.owner.publicKey.toBase58()} account_num=${params.accountNumber}`,
+    `created mango account not found for owner=${params.owner.publicKey.toBase58()} account_num=${
+      params.accountNumber
+    }`,
   );
 }
 

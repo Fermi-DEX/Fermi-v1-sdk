@@ -1,456 +1,178 @@
 # Intent Reference
 
-This file captures the current `v2` relayer intent shape and the direct
-on-chain enqueue fallback now implemented in this SDK.
+This file documents the current SDK intent model for the v5 FIFO perps path.
+The SDK supports two submission paths:
 
-The SDK now exposes two perp intent paths in [src/trading.ts](./src/trading.ts):
+- relayed commit/reveal submission via `submitPerp*ViaRelayer(...)`
+- direct on-chain fallback via `submitPerp*Direct(...)`
 
-- relayed submit via `submitPerp*ViaRelayer(...)`
-- direct on-chain enqueue via `submitPerp*Direct(...)`
+Relayed submission is the normal path. Direct fallback should be rare and is
+delayed on chain by the configured direct speed bump.
 
-Both paths use the same user-signed `v2` intent digest. The difference is:
+## Relayed v5 Intent Shape
 
-- relayed submit sends the signed intent to the relayer, which derives and
-  finalizes dispatch accounts server-side
-- direct enqueue sends the user signature plus `execution_queue_enqueue_direct`
-  on-chain, with no CTM signature and the program-assigned delayed execution
-  speedbump
+The gRPC request is `CtmSequencerRelayer.SubmitIntent`.
 
-## Current Deployment Values
+Required fields:
 
-- `bridge_url`: `https://34.178.149.237/relay/submit-intent`
-- `relayer_grpc_addr`: `34.178.149.237:9090`
-- `group`: `Cj8vUC2nWbREhofnD3iWk4j8CD9Fo6j9c33M5ZFKLVPB`
-- `execution_queue`: `8J7vAomtCVabazRNs8XH4BF3w4BVP852QoASg9yrXUaa`
-- `market`: `0`
-- `user_owner`: `7RZq8cu1UCRPEWWkREgUSscfTz5UiYckWVMsvS8x5jj3`
-- `mango_account`: `B4DiKgfGdFSjmjQzrfoaCRJgjiVTJi96XJsGKoWaX87N`
+- `group`: Mango group pubkey
+- `execution_queue`: v5 queue PDA for the target market
+- `market`: decimal market index
+- `payload`: raw execution-queue payload bytes
+- `remaining_accounts`: canonical dispatch accounts
+- `min_execute_slot`: usually `0`
+- `expires_at_slot`: usually `0`
+- `user_owner`: owner/delegate pubkey
+- `mango_account`: Mango account pubkey
+- `user_signature`: ed25519 signature over the current v5 digest
+- `intent_version`: `2`
+- `target_kind`: `0` for perp market
+- `target_index`: market index
+- `client_order_id`: u64 replay nonce/randomizer
+- `max_fee_lamports`: `AUTO` or an integer lamport cap
 
-## HTTP Bridge JSON
+The SDK derives the per-market v5 queue PDA from `(programId, group,
+marketIndex)` for high-level relayer helpers. `EXECUTION_QUEUE_PK` remains a
+legacy/default override for callers that need it manually.
 
-Use this against `POST https://34.178.149.237/relay/submit-intent`.
+## Payload Framing
 
-Important:
-
-- The HTTP bridge expects `payload_b64` and `user_signature_b64`.
-- The gRPC relayer expects raw `payload` bytes and raw `user_signature` bytes.
-- The fee preference is external to the signed intent payload:
-  - HTTP bridge: `_base_fee`
-  - gRPC / proto: `base_fee`
-- `intent_version`, `target_kind`, and `target_index` are now required for `v2`
-  clients.
-- `remaining_accounts` may still be sent for debugging, but `v2` relayer
-  execution derives canonical accounts locally.
-- Some older docs still show `payload` and `user_signature` in the HTTP body. The live bridge code does not.
-
-```json
-{
-  "group": "Cj8vUC2nWbREhofnD3iWk4j8CD9Fo6j9c33M5ZFKLVPB",
-  "execution_queue": "8J7vAomtCVabazRNs8XH4BF3w4BVP852QoASg9yrXUaa",
-  "market": "0",
-  "intent_version": 2,
-  "target_kind": 0,
-  "target_index": 0,
-  "_base_fee": "AUTO",
-  "payload_b64": "<base64-encoded queue payload bytes>",
-  "remaining_accounts": [
-    {
-      "pubkey": "Cj8vUC2nWbREhofnD3iWk4j8CD9Fo6j9c33M5ZFKLVPB",
-      "is_signer": false,
-      "is_writable": false
-    },
-    {
-      "pubkey": "B4DiKgfGdFSjmjQzrfoaCRJgjiVTJi96XJsGKoWaX87N",
-      "is_signer": false,
-      "is_writable": true
-    },
-    {
-      "pubkey": "7RZq8cu1UCRPEWWkREgUSscfTz5UiYckWVMsvS8x5jj3",
-      "is_signer": false,
-      "is_writable": false
-    },
-    {
-      "pubkey": "83GFRTYyAeubQBuhS9f7QKJXYCJEM7xCBqDYKSgghA1w",
-      "is_signer": false,
-      "is_writable": true
-    },
-    {
-      "pubkey": "3Cvb3Uaee1g4eqrxxb9aHBRcWskcJ8ehNKzV7GjVZLE6",
-      "is_signer": false,
-      "is_writable": true
-    },
-    {
-      "pubkey": "9HKD3XFPhvZoNQHdhobyERrpV6vesSYUzhaaZFoHoEZD",
-      "is_signer": false,
-      "is_writable": true
-    },
-    {
-      "pubkey": "BCTQe6tm973Rxk4TZDX2ozvxiWpvKZoiQFvDeLKtHScV",
-      "is_signer": false,
-      "is_writable": true
-    },
-    {
-      "pubkey": "EpuCmegExhEPhxofRcktPQvxhQd7GyBkyE8DYyGEnavF",
-      "is_signer": false,
-      "is_writable": false
-    },
-    {
-      "pubkey": "BabdPVkYbeCf44nFFbmzGnkCm27RV2RombwUn33U4t59",
-      "is_signer": false,
-      "is_writable": false
-    },
-    {
-      "pubkey": "BnVHvdioN12A2bsCLwMaPJAGR6VAAdbuLC3Wf1tHC7Qa",
-      "is_signer": false,
-      "is_writable": false
-    },
-    {
-      "pubkey": "83GFRTYyAeubQBuhS9f7QKJXYCJEM7xCBqDYKSgghA1w",
-      "is_signer": false,
-      "is_writable": false
-    },
-    {
-      "pubkey": "EpuCmegExhEPhxofRcktPQvxhQd7GyBkyE8DYyGEnavF",
-      "is_signer": false,
-      "is_writable": false
-    }
-  ],
-  "min_execute_slot": "0",
-  "expires_at_slot": "0",
-  "user_owner": "7RZq8cu1UCRPEWWkREgUSscfTz5UiYckWVMsvS8x5jj3",
-  "mango_account": "B4DiKgfGdFSjmjQzrfoaCRJgjiVTJi96XJsGKoWaX87N",
-  "user_signature_b64": "<base64-ed25519-signature-over-user_intent_message>"
-}
-```
-
-For most clients, `_base_fee: "AUTO"` is the correct default.
-
-If you want to cap what the relayer may charge, send a maximum instead of
-`AUTO`, for example:
-
-- `"25000lamports"`
-- `"0.00002sol"`
-
-Fields that must be generated locally by the bot:
-
-- `payload_b64`
-- `user_signature_b64`
-- `intent_version`
-- `target_kind`
-- `target_index`
-
-`_base_fee` should be set by the client, but it is not part of the user-signed
-digest.
-
-See [fee_system.md](./fee_system.md) for the exact fee-balance and deposit flow.
-
-## Critical Payload Warning
-
-`payload_b64` must be the raw execution-queue payload bytes.
-
-It must not be:
-
-- an Anchor instruction discriminator plus body
-- a serialized JSON object
-- a hex string encoded as UTF-8
-- base64 of human-readable hex text
-
-For `PerpPlaceOrderV2`, the queue payload always starts with this 4-byte header:
+`payload` is not Anchor instruction data and not JSON. It is the raw
+execution-queue payload:
 
 ```text
-01 00 00 00
+byte 0       : version = 1
+byte 1       : variant
+bytes 2..4   : flags = 0
+bytes 4..end : variant body
 ```
 
-Meaning:
+Supported SDK variants:
 
-- `01` = queue payload version v1
-- `00` = `PerpPlaceOrderV2` variant
-- `0000` = flags
+| variant                              | body                  | helper                                                                   |
+| ------------------------------------ | --------------------- | ------------------------------------------------------------------------ |
+| `0` `PerpPlaceOrderV2`               | place order body      | `submitPerpOrderViaRelayer`, `submitPerpOrderDirect`                     |
+| `2` `PerpCancelOrderByClientOrderId` | `u64 client_order_id` | `cancelPerpOrderByClientIdViaRelayer`, `cancelPerpOrderByClientIdDirect` |
+| `3` `PerpCancelAllOrders`            | `u8 limit`            | `cancelAllPerpOrdersViaRelayer`, `cancelAllPerpOrdersDirect`             |
 
-Wrong:
+For production-like FIFO traffic, use `expiryTimestamp = 0`. Nonzero order
+expiries can mature while the intent is waiting behind earlier queue work.
 
-```text
-e8e09a4e9eb806db ...
-```
+## Relayed User Signature
 
-That is an Anchor instruction discriminator for direct `perp_place_order_v2` instruction data. If you send that to the relayer as `payload_b64`, the queue decoder rejects it with error `6086`.
-
-Right:
-
-```text
-01 00 00 00 ...
-```
-
-For the example order:
-
-- `side = bid`
-- `priceLots = 10000`
-- `maxBaseLots = 100`
-- `maxQuoteLots = i64::MAX`
-- `clientOrderId = 1775489806394`
-- `orderType = postOnly`
-- `selfTradeBehavior = decrementTake`
-- `reduceOnly = false`
-- `expiryTimestamp = 0`
-- `limit = 10`
-
-the correct queue payload hex is:
-
-```text
-010000000010270000000000006400000000000000ffffffffffffff7f3a7070639d010000020000000000000000000a
-```
-
-This is:
-
-```text
-01000000
-+ 00
-+ 1027000000000000
-+ 6400000000000000
-+ ffffffffffffff7f
-+ 3a7070639d010000
-+ 02
-+ 00
-+ 00
-+ 0000000000000000
-+ 0a
-```
-
-If the first byte of the decoded payload is not `01`, the program throws:
-
-- `6086`
-- `ExecutionQueuePayloadVersionUnsupported`
-- `execution queue payload version unsupported`
-
-## Exact User Intent Signing Construction
-
-The user signs a 32-byte digest. The user does not sign the JSON request body.
-
-Authoritative implementation:
-
-- `src/trading.ts`
-- `../mng-v4/ts/client/src/executionQueue.ts`
-
-The canonical `v2` flow is:
-
-1. Build the raw queue payload bytes for the requested action.
-2. Compute `payload_hash = sha256(payload)`.
-3. Build `user_intent_message = sha256(...)` over the exact byte concat below.
-4. Sign `user_intent_message` with Ed25519 detached signature.
-5. Encode the raw 64-byte signature as base64 and send it as `user_signature_b64`.
-
-The user message no longer signs `accounts_hash`. The explicit target is signed
-instead, which lets the relayer derive `remaining_accounts` safely.
-
-The exact digest is:
+Relayed v5 intents sign `mango-v5-user-intent-v2`.
 
 ```text
 sha256(
-  utf8("mango-v4-user-intent-v2")
+  utf8("mango-v5-user-intent-v2")
   || group_pubkey_32
   || mango_account_pubkey_32
   || user_owner_pubkey_32
-  || kind_u8
-  || target_kind_u8
+  || kind_u8                  // 0 = CtmWrapped
+  || target_kind_u8           // 0 = PerpMarket
   || target_index_u16_le
-  || payload_hash_32
+  || payload_hash_32          // sha256(payload)
+  || accounts_hash_32         // canonical dispatch account hash
+  || min_execute_slot_u64_le
+  || expires_at_slot_u64_le
+  || client_order_id_u64_le
 )
 ```
 
-For relayed perp intents:
+`client_order_id` is the replay nonce bound into the user signature and into
+the v5 on-chain rolling replay cache. The SDK behavior is:
 
-- `kind = 0`
-- `target_kind = 0` (`PerpMarket`)
-- `target_index = market_index`
-- the pubkeys are raw 32-byte values, not base58 strings
-- `market`, `min_execute_slot`, and `expires_at_slot` are request metadata and
-  are not part of the user-signed digest
-- `base_fee` / `_base_fee` is also request metadata and is not part of the
-  user-signed digest
+- place order: use `params.clientOrderId` as both order id and replay nonce
+  unless `params.intentClientOrderId` is set
+- cancel by client id: use `params.clientOrderId` as the cancel target and a
+  fresh random replay nonce unless `params.intentClientOrderId` is set
+- cancel all: use a fresh random replay nonce unless
+  `params.intentClientOrderId` is set
 
-For direct on-chain enqueue:
+The legacy `mango-v4-user-intent-v2` builder remains exported only for older
+deployments; current v5 helpers do not use it.
 
-- the same `v2` user digest is signed
-- there is no CTM signature
-- the SDK builds `execution_queue_enqueue_direct`
-- the program assigns `sequence = max_seen_sequence + 1`
-- the program enforces the direct-submit speedbump before execution
+## Account Hash Rule
 
-## Exact Accounts Hash Rule
-
-Each account contributes exactly 34 bytes:
+Each account contributes exactly:
 
 ```text
 pubkey_32 || is_signer_u8 || is_writable_u8
 ```
 
-The hash is:
+Account order and duplicates matter.
+
+For relayed CTM enqueue, the SDK hashes the submitted `remaining_accounts`
+after applying the effective runtime flags for fixed accounts:
+
+- group: writable
+- v5 queue: writable
+- sysvar instructions: readonly
+
+For v5 direct enqueue, the direct hash applies the same group/queue writability
+normalization and also scrubs the owner/delegate account to readonly,
+non-signer, matching on-chain verification.
+
+## Direct Fallback Signature
+
+Direct fallback signs `mango-v5-direct-intent-v1`:
 
 ```text
 sha256(
-  account0_34
-  || account1_34
-  || account2_34
-  || ...
+  utf8("mango-v5-direct-intent-v1")
+  || group_pubkey_32
+  || mango_account_pubkey_32
+  || user_owner_pubkey_32
+  || kind_u8
+  || target_kind_u8
+  || market_index_u16_le
+  || payload_hash_32
+  || accounts_hash_32
+  || expires_at_slot_u64_le
+  || nonce_u64_le
 )
 ```
 
-Important:
+Use `nonce` only as the direct replay nonce. It does not need to equal the
+order payload `clientOrderId`.
 
-- account order matters
-- duplicates matter
-- do not de-duplicate the list
-
-For CTM relayer submissions, the helper path uses the relayer-compatible account hash, not the plain raw hash. It first merges effective runtime flags from:
-
-- `group`, writable `true`
-- `execution_queue`, writable `true`
-- `Sysvar1nstructions1111111111111111111111111`, writable `false`
-
-and then reapplies those effective flags to the submitted `remaining_accounts` array before hashing.
-
-That is why the sample lane above may submit the first `group` account as not writable, but it is still hashed as writable in the canonical relayer path.
-
-## `buildExecutionQueueUserIntent(...)`
-
-This SDK already uses the correct helper flow in `src/trading.ts`.
-
-The intended pattern is:
+## Minimal Relayed Example
 
 ```ts
-const remainingAccounts = await buildCanonicalPerpRemainingAccounts(
-  context,
-  marketIndex,
-);
+import {
+  ContinuumRelayerClient,
+  PerpOrderSide,
+  PerpOrderType,
+  createMangoContext,
+  submitPerpOrderViaRelayer,
+} from '@fermilabs/continuum-sdk';
 
-const intent = await buildExecutionQueueUserIntent({
-  group: context.group.publicKey,
-  executionQueue: context.executionQueuePk,
-  mangoAccount: context.mangoAccount.publicKey,
-  userOwner: context.user.publicKey,
-  payload,
-  remainingAccounts,
+const context = await createMangoContext({
+  cluster: 'devnet',
+  clusterUrl: process.env.CLUSTER_URL!,
+  userKeypair: process.env.USER_KEYPAIR!,
+  groupPk: process.env.GROUP_PK!,
+  mangoAccountPk: process.env.MANGO_ACCOUNT_PK!,
+  programId: process.env.PROGRAM_ID,
 });
 
-const userSignature = signExecutionQueueIntentMessage(
-  context.user.secretKey,
-  intent.userIntentMessage,
-);
+const relayer = new ContinuumRelayerClient(process.env.RELAYER_ADDR!);
+
+await submitPerpOrderViaRelayer(relayer, context, {
+  marketIndex: 0,
+  side: PerpOrderSide.bid,
+  price: 120,
+  quantity: 0.01,
+  orderType: PerpOrderType.immediateOrCancel,
+  expiryTimestamp: 0,
+  maxFeeLamports: 'AUTO',
+});
 ```
 
-Important:
+## Operational Defaults
 
-- pass `executionQueue` into `buildExecutionQueueUserIntent(...)`
-- if `executionQueue` is omitted, the helper falls back to plain `hashExecutionQueueAccounts(...)`
-- for relayer submissions, that fallback can produce the wrong `accounts_hash`
-
-## Minimal Reference Implementation
-
-```ts
-import { createHash } from 'crypto';
-import nacl from 'tweetnacl';
-import bs58 from 'bs58';
-
-const USER_INTENT_DOMAIN = Buffer.from('mango-v4-user-intent-v1', 'utf8');
-const SYSVAR_INSTRUCTIONS = 'Sysvar1nstructions1111111111111111111111111';
-
-type Meta = {
-  pubkey: string;
-  is_signer: boolean;
-  is_writable: boolean;
-};
-
-function sha256(data: Uint8Array): Buffer {
-  return createHash('sha256').update(data).digest();
-}
-
-function pubkey32(pk: string): Buffer {
-  return Buffer.from(bs58.decode(pk));
-}
-
-function canonicalizeRemainingAccountsForRelayer(
-  group: string,
-  executionQueue: string,
-  remaining: Meta[],
-): Meta[] {
-  const merged = new Map<string, { is_signer: boolean; is_writable: boolean }>();
-  const fixed: Meta[] = [
-    { pubkey: group, is_signer: false, is_writable: true },
-    { pubkey: executionQueue, is_signer: false, is_writable: true },
-    { pubkey: SYSVAR_INSTRUCTIONS, is_signer: false, is_writable: false },
-  ];
-
-  for (const a of [...fixed, ...remaining]) {
-    const prev = merged.get(a.pubkey);
-    if (!prev) {
-      merged.set(a.pubkey, {
-        is_signer: !!a.is_signer,
-        is_writable: !!a.is_writable,
-      });
-    } else {
-      prev.is_signer = prev.is_signer || !!a.is_signer;
-      prev.is_writable = prev.is_writable || !!a.is_writable;
-    }
-  }
-
-  return remaining.map((a) => {
-    const eff = merged.get(a.pubkey)!;
-    return {
-      pubkey: a.pubkey,
-      is_signer: eff.is_signer,
-      is_writable: eff.is_writable,
-    };
-  });
-}
-
-function hashRemainingAccounts(accounts: Meta[]): Buffer {
-  const chunks: Buffer[] = [];
-  for (const a of accounts) {
-    chunks.push(pubkey32(a.pubkey));
-    chunks.push(Buffer.from([a.is_signer ? 1 : 0]));
-    chunks.push(Buffer.from([a.is_writable ? 1 : 0]));
-  }
-  return sha256(Buffer.concat(chunks));
-}
-
-function buildUserIntentMessage(params: {
-  group: string;
-  executionQueue: string;
-  mangoAccount: string;
-  userOwner: string;
-  kind: number;
-  payload: Buffer;
-  remainingAccounts: Meta[];
-}): Buffer {
-  const payloadHash = sha256(params.payload);
-  const effectiveRemaining = canonicalizeRemainingAccountsForRelayer(
-    params.group,
-    params.executionQueue,
-    params.remainingAccounts,
-  );
-  const accountsHash = hashRemainingAccounts(effectiveRemaining);
-
-  return sha256(
-    Buffer.concat([
-      USER_INTENT_DOMAIN,
-      pubkey32(params.group),
-      pubkey32(params.mangoAccount),
-      pubkey32(params.userOwner),
-      Buffer.from([params.kind]),
-      payloadHash,
-      accountsHash,
-    ]),
-  );
-}
-
-function signUserIntentMessage(
-  secretKey64: Uint8Array,
-  userIntentMessage: Buffer,
-): Buffer {
-  return Buffer.from(nacl.sign.detached(userIntentMessage, secretKey64));
-}
-```
-
-## Compatibility Note
-
-The relayer currently accepts a fallback where the user signs the ASCII hex string of the 32-byte digest. Do not rely on that mode unless you have to. The recommended path is to sign the raw 32-byte `user_intent_message`.
+- `maxFeeLamports: 'AUTO'` is the default recommendation.
+- `minExecuteSlot = 0` is normal for relayed traffic.
+- `expiresAtSlot = 0` avoids queue-delay expiry surprises.
+- Use direct fallback only after the configured speed bump and only when the
+  relayer path is unavailable or censored.

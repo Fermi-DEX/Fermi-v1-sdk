@@ -7,13 +7,12 @@ Rather than duplicating those instructions and letting them drift, keep these so
 - Mango TypeScript and workspace overview:
   - [`../../mng-v4/README.md`](../../mng-v4/README.md)
 - Mango build and platform gotchas:
+  - [`../../mng-v4/build-guide.md`](../../mng-v4/build-guide.md)
   - [`../../mng-v4/FAQ-DEV.md`](../../mng-v4/FAQ-DEV.md)
-- Existing clean-build troubleshooting for the relayer:
-  - [`../../buildissues.md`](../../buildissues.md)
 - Continuum harness API reference:
   - [`../../mng-v4/api.md`](../../mng-v4/api.md)
-- Persistent stack and service layout:
-  - [`../../persistence.md`](../../persistence.md)
+- Professional deployment and service layout:
+  - [`../../mng-v4/development.md`](../../mng-v4/development.md)
 - Devnet deployment and runtime scripts:
   - [`../../deploy.sh`](../../deploy.sh)
   - [`../../scripts/run_devnet_harness.sh`](../../scripts/run_devnet_harness.sh)
@@ -37,6 +36,36 @@ Then use this SDK only for the remote-client layer:
 - place/cancel quotes,
 - read optimistic or confirmed state,
 - perform direct Mango client actions from the same machine.
+
+## Validation
+
+Use the package validation script before handing the SDK to another operator:
+
+```bash
+npm install
+npm run validate
+```
+
+`validate` runs TypeScript type checking, builds `dist/`, and performs an
+`npm pack --dry-run` so the packaged files are visible before distribution.
+`dist/` is generated locally by the package `prepare` hook and is intentionally
+not committed.
+
+## Dependency Audit Notes
+
+`npm audit --omit=dev` currently reports transitive issues inherited through the
+published Mango/Solana client stack, mainly `@solana/web3.js` dependencies on
+`uuid` plus `@solana/spl-token` / `@solana/buffer-layout-utils` dependencies on
+`bigint-buffer`. As of this SDK update, the latest compatible
+`@solana/web3.js` and `bigint-buffer` package versions still trigger the audit,
+and npm's suggested forced fix would replace `@blockworks-foundation/mango-v4`
+with an incompatible package version.
+
+Do not run `npm audit fix --force` for this SDK without revalidating all Mango
+client behavior. Run the SDK as a trading-key process: keep the host isolated,
+avoid exposing it to untrusted HTTP/gRPC inputs beyond the intended relayer and
+harness endpoints, and revisit the audit once upstream Solana/Mango packages
+ship patched dependency ranges.
 
 ## Why This Matters
 

@@ -56,7 +56,10 @@ async function createClientAndGroup(): Promise<{
 }> {
   const cluster = (process.env.CLUSTER || 'devnet') as Cluster;
   const user = loadKeypair(requiredEnv('USER_KEYPAIR'));
-  const connection = new Connection(requiredEnv('CLUSTER_URL'), commitmentFromEnv());
+  const connection = new Connection(
+    requiredEnv('CLUSTER_URL'),
+    commitmentFromEnv(),
+  );
   const provider = new AnchorProvider(
     connection,
     new Wallet(user),
@@ -80,7 +83,9 @@ async function resolveMangoAccount(params: {
   accountNumber: number;
 }): Promise<MangoAccount> {
   if (params.mangoAccountPk) {
-    return await params.client.getMangoAccount(toPublicKey(params.mangoAccountPk));
+    return await params.client.getMangoAccount(
+      toPublicKey(params.mangoAccountPk),
+    );
   }
   const found = await params.client.getMangoAccountForOwner(
     params.group,
@@ -89,7 +94,9 @@ async function resolveMangoAccount(params: {
   );
   if (!found) {
     throw new Error(
-      `no mango account found for owner=${params.owner.toBase58()} account_num=${params.accountNumber}; set MANGO_ACCOUNT_PK or create the account first`,
+      `no mango account found for owner=${params.owner.toBase58()} account_num=${
+        params.accountNumber
+      }; set MANGO_ACCOUNT_PK or create the account first`,
     );
   }
   return found;
@@ -109,7 +116,11 @@ async function main(): Promise<void> {
   const mintPk = process.env.USDC_MINT
     ? toPublicKey(process.env.USDC_MINT)
     : group.getFirstBankForPerpSettlement().mint;
-  const ownerTokenAccount = await getAssociatedTokenAddress(mintPk, user.publicKey, true);
+  const ownerTokenAccount = await getAssociatedTokenAddress(
+    mintPk,
+    user.publicKey,
+    true,
+  );
 
   let ownerBalanceUi: string | null = null;
   try {

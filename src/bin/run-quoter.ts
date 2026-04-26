@@ -37,7 +37,7 @@ async function main(): Promise<void> {
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: requiredEnv('GROUP_PK'),
     mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),
-    executionQueuePk: requiredEnv('EXECUTION_QUEUE_PK'),
+    executionQueuePk: process.env.EXECUTION_QUEUE_PK,
     programId: process.env.PROGRAM_ID,
   });
   const relayer = new ContinuumRelayerClient(requiredEnv('RELAYER_ADDR'));
@@ -59,6 +59,10 @@ async function main(): Promise<void> {
       spreadBps: Number(process.env.BOT_SPREAD_BPS || '20'),
       size: Number(process.env.BOT_SIZE || '0.01'),
       intervalMs: Number(process.env.BOT_INTERVAL_MS || '2000'),
+      maxFeeLamports:
+        process.env.BOT_MAX_FEE_LAMPORTS ||
+        process.env.RELAYER_MAX_FEE_LAMPORTS ||
+        'AUTO',
       log: (message, fields) => {
         const event = {
           ts: new Date().toISOString(),

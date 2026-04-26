@@ -8,8 +8,13 @@ import {
   TransactionInstruction,
 } from '@solana/web3.js';
 
-export const USER_INTENT_DOMAIN = 'mango-v4-user-intent-v2';
+export const USER_INTENT_DOMAIN = 'mango-v5-user-intent-v2';
+export const LEGACY_USER_INTENT_DOMAIN = 'mango-v4-user-intent-v2';
 const USER_INTENT_DOMAIN_BYTES = Buffer.from(USER_INTENT_DOMAIN, 'utf-8');
+const LEGACY_USER_INTENT_DOMAIN_BYTES = Buffer.from(
+  LEGACY_USER_INTENT_DOMAIN,
+  'utf-8',
+);
 const instructionDiscriminatorCache = new Map<string, Buffer>();
 const EXECUTION_QUEUE_V5_SEED = Buffer.from('execution-queue-v5', 'utf-8');
 const EXECUTION_QUEUE_V5_DIRECT_SEED = Buffer.from(
@@ -386,15 +391,25 @@ export function hashExecutionQueueAccountsForV5DirectEnqueue(
   remainingAccounts: AccountMeta[],
   userOwner: PublicKey,
 ): Buffer {
-  const effectiveRemaining = mergeEffectiveRuntimeFlags(remainingAccounts, [
-    { pubkey: group, isSigner: false, isWritable: false },
-    { pubkey: executionQueue, isSigner: false, isWritable: false },
-    { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
-  ]).map((account) =>
-    account.pubkey.equals(userOwner)
-      ? { pubkey: account.pubkey, isSigner: false, isWritable: false }
-      : account,
+  const effectiveRemaining = remainingAccounts.map((account) => {
+    if (account.pubkey.equals(group) || account.pubkey.equals(executionQueue)) {
+      return { pubkey: account.pubkey, isSigner: false, isWritable: true };
+    }
+    if (account.pubkey.equals(SYSVAR_INSTRUCTIONS_PUBKEY)) {
+      return { pubkey: account.pubkey, isSigner: false, isWritable: false };
+    }
+    return account;
+  });
+  const ownerIndex = effectiveRemaining.findIndex((account) =>
+    account.pubkey.equals(userOwner),
   );
+  if (ownerIndex >= 0) {
+    effectiveRemaining[ownerIndex] = {
+      pubkey: effectiveRemaining[ownerIndex].pubkey,
+      isSigner: false,
+      isWritable: false,
+    };
+  }
   return hashExecutionQueueAccounts(effectiveRemaining);
 }
 
@@ -441,7 +456,7 @@ export function buildPerpUserIntentMessageV2(params: {
   const payloadHash = hashExecutionQueuePayload(params.payload);
   const userIntentMessage = sha256(
     Buffer.concat([
-      USER_INTENT_DOMAIN_BYTES,
+      LEGACY_USER_INTENT_DOMAIN_BYTES,
       Buffer.from(params.group.toBytes()),
       Buffer.from(params.mangoAccount.toBytes()),
       Buffer.from(params.userOwner.toBytes()),
@@ -452,6 +467,63 @@ export function buildPerpUserIntentMessageV2(params: {
     ]),
   );
   return { payloadHash, userIntentMessage };
+}
+
+export function buildPerpUserIntentMessageV3(params: {
+  group: PublicKey;
+  mangoAccount: PublicKey;
+  userOwner: PublicKey;
+  marketIndex: number;
+  payload: Uint8Array;
+  accountsHash: Buffer;
+  minExecuteSlot?: BigNumberish;
+  expiresAtSlot?: BigNumberish;
+  clientOrderId: BigNumberish;
+  kind?: QueueItemKind;
+}): { payloadHash: Buffer; userIntentMessage: Buffer } {
+  if (params.accountsHash.length !== 32) {
+    throw new Error('accountsHash must be 32 bytes');
+  }
+  const payloadHash = hashExecutionQueuePayload(params.payload);
+  const userIntentMessage = sha256(
+    Buffer.concat([
+      USER_INTENT_DOMAIN_BYTES,
+      Buffer.from(params.group.toBytes()),
+      Buffer.from(params.mangoAccount.toBytes()),
+      Buffer.from(params.userOwner.toBytes()),
+      u8(params.kind ?? QueueItemKind.CtmWrapped),
+      u8(UserIntentTargetKind.PerpMarket),
+      u16ToLe(params.marketIndex),
+      Buffer.from(payloadHash),
+      Buffer.from(params.accountsHash),
+      u64ToLe(params.minExecuteSlot ?? 0),
+      u64ToLe(params.expiresAtSlot ?? 0),
+      u64ToLe(params.clientOrderId),
+    ]),
+  );
+  return { payloadHash, userIntentMessage };
+}
+
+export function buildExecutionQueueV5UserNonceReplayHash(params: {
+  group: PublicKey;
+  mangoAccount: PublicKey;
+  userOwner: PublicKey;
+  kind: number;
+  marketIndex: number;
+  nonce: BigNumberish;
+}): Buffer {
+  return sha256(
+    Buffer.concat([
+      Buffer.from('mango-v5-user-nonce-v1', 'utf-8'),
+      params.group.toBuffer(),
+      params.mangoAccount.toBuffer(),
+      params.userOwner.toBuffer(),
+      u8(params.kind),
+      u8(UserIntentTargetKind.PerpMarket),
+      u16ToLe(params.marketIndex),
+      u64ToLe(params.nonce),
+    ]),
+  );
 }
 
 export function buildExecutionQueueV5DirectIntentMessage(params: {
