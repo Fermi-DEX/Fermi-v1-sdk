@@ -14,6 +14,7 @@ For build and environment setup, keep the existing repo docs in reach:
 - [Build And Setup Notes](./docs/BUILD-SETUP.md)
 - [Full Harness API Reference](./docs/api.md)
 - [Relayer Fee System](./fee_system.md)
+- [Relayer Fee Path End To End](./docs/fee-path-end-to-end.md)
 
 ## What It Covers
 
@@ -110,6 +111,7 @@ Required values:
 Optional:
 
 - `HARNESS_URL`: Continuum harness base URL, for example `http://host:9091`
+- `FEE_HTTP_URL`: execution-engine HTTP URL for fee status and deposits, for example `http://host:9093`
 - `PROGRAM_ID`: override Mango program id
 - `EXECUTION_QUEUE_PK`: legacy/default queue address; current v5 helpers derive the per-market queue PDA from `PROGRAM_ID`, `GROUP_PK`, and `marketIndex`
 - `RELAYER_MAX_FEE_LAMPORTS`: relayer fee cap in lamports, or `AUTO`
@@ -178,7 +180,9 @@ The relayer now uses a separate internal SOL fee ledger per wallet.
   relayer's `deposit_address` and then call `POST /fees-deposited`
 
 See [fee_system.md](./fee_system.md) for the exact client flow, supported
-formats, and endpoint details.
+formats, and endpoint details. See
+[docs/fee-path-end-to-end.md](./docs/fee-path-end-to-end.md) for the practical
+startup, top-up, submit, and retry sequence.
 
 ## Direct Chain Interactions
 

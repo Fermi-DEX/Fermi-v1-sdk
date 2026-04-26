@@ -247,6 +247,10 @@ instruction whose UTF-8 data matches `memo` exactly.
 
 ## SDK Usage
 
+For the complete client runbook, including which service port to use, startup
+preflight, top-up, submit, and retry behavior, see
+[docs/fee-path-end-to-end.md](./docs/fee-path-end-to-end.md).
+
 Import from the SDK root:
 
 ```ts
