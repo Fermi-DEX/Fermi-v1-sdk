@@ -81,6 +81,13 @@ The direct flow uses `execution_queue_v5_enqueue_direct_market`, derives the
 queue authority / v5 queue / direct pool PDAs from `GROUP_PK` + `PERP_MARKET_INDEX`,
 and optionally registers the owner lane against `HARNESS_URL` before submit.
 
+Perp intent helpers build the canonical execution-queue account list as fixed
+dispatch accounts followed by grouped health sections:
+`banks`, `bank_oracles`, `perp_markets`, `perp_oracles`, Serum/OpenBook open
+orders, then fallback oracles. The helper includes every configured perp market
+in sorted market-index order. Bots should use the SDK helper output directly and
+must not interleave `perp_market, oracle` pairs.
+
 For a local smoke template that places and then cancels through direct v5
 fallback, see [examples/direct-v5-smoketest.ts](./examples/direct-v5-smoketest.ts).
 

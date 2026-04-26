@@ -102,6 +102,33 @@ pubkey_32 || is_signer_u8 || is_writable_u8
 
 Account order and duplicates matter.
 
+For perp execution-queue intents, `remaining_accounts` must be ordered as:
+
+```text
+group
+mango_account
+user_owner
+target_perp_market
+target_bids
+target_asks
+target_event_queue
+target_oracle
+banks...
+bank_oracles...
+perp_markets...
+perp_oracles...
+serum3_open_orders...
+openbook_open_orders...
+fallback_oracles...
+```
+
+The health suffix is intentionally sectioned. Do not interleave
+`perp_market, oracle` pairs. The on-chain health scanner first consumes all
+banks, then all bank oracles, then a contiguous perp-market section, then a
+matching contiguous perp-oracle section. Current SDK helpers include every
+configured perp market in sorted market-index order to keep relayer lane hashes
+stable across users and markets.
+
 For relayed CTM enqueue, the SDK hashes the submitted `remaining_accounts`
 after applying the effective runtime flags for fixed accounts:
 

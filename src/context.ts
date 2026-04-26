@@ -13,6 +13,9 @@ import {
   MangoClient,
   PerpMarketIndex,
   PerpMarket,
+  Serum3Orders,
+  TokenIndex,
+  TokenPosition,
 } from '@blockworks-foundation/mango-v4';
 import fs from 'fs';
 import path from 'path';
@@ -118,11 +121,69 @@ export async function buildCanonicalPerpRemainingAccounts(
     context.group.getPerpMarketByMarketIndex(
       perpMarketIndex as PerpMarketIndex,
     );
-  const healthRemainingAccounts = await context.client.buildHealthRemainingAccounts(
+
+  const tokenPositionIndices = context.mangoAccount.tokens.map(
+    (token) => token.tokenIndex,
+  );
+  const settlementBank = context.group.getFirstBankForPerpSettlement();
+  const tokenIndexUnset =
+    TokenPosition.TokenIndexUnset as typeof settlementBank.tokenIndex;
+  if (
+    !tokenPositionIndices.includes(settlementBank.tokenIndex) &&
+    tokenPositionIndices.includes(tokenIndexUnset)
+  ) {
+    tokenPositionIndices[
+      tokenPositionIndices.findIndex((index) => index === tokenIndexUnset)
+    ] = settlementBank.tokenIndex;
+  }
+  if (!tokenPositionIndices.includes(settlementBank.tokenIndex)) {
+    throw new Error(
+      'all Mango token positions are occupied; cannot build canonical perp execution-queue accounts',
+    );
+  }
+
+  const mintInfos = uniqueBy(
+    tokenPositionIndices
+      .filter((tokenIndex) => tokenIndex !== tokenIndexUnset)
+      .map((tokenIndex) => {
+        const mintInfo = context.group.mintInfosMapByTokenIndex.get(
+          tokenIndex as TokenIndex,
+        );
+        if (!mintInfo) {
+          throw new Error(`missing mint info for token index ${tokenIndex}`);
+        }
+        return mintInfo;
+      }),
+    (mintInfo) => mintInfo.tokenIndex,
+  );
+  const allPerpMarkets = Array.from(
+    context.group.perpMarketsMapByMarketIndex.values(),
+  ).sort((left, right) => left.perpMarketIndex - right.perpMarketIndex);
+  const fallbackMap = await context.client.deriveFallbackOracleContexts(
     context.group,
-    [context.mangoAccount],
-    [context.group.getFirstBankForPerpSettlement()],
-    [perpMarket],
+  );
+  const fallbackOracles: PublicKey[] = [];
+  for (const oracle of mintInfos.map((mintInfo) => mintInfo.oracle)) {
+    const fallback = fallbackMap.get(oracle.toBase58());
+    if (fallback) {
+      fallbackOracles.push(...fallback);
+    }
+  }
+  const serumOpenOrders = context.mangoAccount.serum3
+    .filter(
+      (serumPosition) =>
+        serumPosition.marketIndex !== Serum3Orders.Serum3MarketIndexUnset,
+    )
+    .map((serumPosition) => serumPosition.openOrders);
+  const healthRemainingAccounts = buildExecutionQueueHealthRemainingAccountKeys(
+    {
+      bankAccounts: mintInfos.map((mintInfo) => mintInfo.firstBank()),
+      tokenOracles: mintInfos.map((mintInfo) => mintInfo.oracle),
+      perpMarkets: allPerpMarkets.map((market) => market.publicKey),
+      perpOracles: allPerpMarkets.map((market) => market.oracle),
+      serumOpenOrders,
+      fallbackOracles,
+    },
   );
 
   return [
@@ -140,4 +201,55 @@ export async function buildCanonicalPerpRemainingAccounts(
       isWritable: false,
     })),
   ];
+}
+
+type HealthRemainingAccountSections = {
+  bankAccounts?: PublicKey[];
+  tokenOracles?: PublicKey[];
+  perpMarkets?: PublicKey[];
+  perpOracles?: PublicKey[];
+  serumOpenOrders?: PublicKey[];
+  openbookOpenOrders?: PublicKey[];
+  fallbackOracles?: PublicKey[];
+};
+
+function buildExecutionQueueHealthRemainingAccountKeys(
+  sections: HealthRemainingAccountSections,
+): PublicKey[] {
+  const fallbackSeen = new Set(
+    (sections.tokenOracles ?? []).map((key) => key.toBase58()),
+  );
+  const fallbackOracles: PublicKey[] = [];
+  for (const fallback of sections.fallbackOracles ?? []) {
+    const key = fallback.toBase58();
+    if (fallback.equals(PublicKey.default) || fallbackSeen.has(key)) {
+      continue;
+    }
+    fallbackSeen.add(key);
+    fallbackOracles.push(fallback);
+  }
+
+  return [
+    ...(sections.bankAccounts ?? []),
+    ...(sections.tokenOracles ?? []),
+    ...(sections.perpMarkets ?? []),
+    ...(sections.perpOracles ?? []),
+    ...(sections.serumOpenOrders ?? []),
+    ...(sections.openbookOpenOrders ?? []),
+    ...fallbackOracles,
+  ];
+}
+
+function uniqueBy<T, K>(values: T[], keyFn: (value: T) => K): T[] {
+  const seen = new Set<K>();
+  const unique: T[] = [];
+  for (const value of values) {
+    const key = keyFn(value);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(value);
+  }
+  return unique;
 }
