@@ -11,6 +11,7 @@ This package is intentionally separate from the deployment repo. It assumes the 
 
 For build and environment setup, keep the existing repo docs in reach:
 
+- [Usage Guide (step-by-step walkthrough)](./USAGE.md)
 - [Build And Setup Notes](./docs/BUILD-SETUP.md)
 - [Full Harness API Reference](./docs/api.md)
 - [Relayer Fee System](./fee_system.md)

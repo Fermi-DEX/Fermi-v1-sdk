@@ -9,7 +9,10 @@
     "continuum-quoter": "./dist/bin/run-quoter.js",
     "continuum-create-mango-account": "./dist/bin/create-mango-account.js",
     "continuum-deposit-usdc": "./dist/bin/deposit-usdc.js",
-    "continuum-direct-place-order": "./dist/bin/direct-orders/place.js"
+    "continuum-direct-place-order": "./dist/bin/direct-orders/place.js",
+    "continuum-smoke-check": "./dist/bin/smoke-check.js",
+    "continuum-simulate": "./dist/bin/simulate.js",
+    "continuum-portfolio": "./dist/bin/portfolio.js"
   },
   "files": [
     "dist",
@@ -19,6 +22,7 @@
     "fee_system.md",
     "intent_reference.md",
     "README.md",
+    "USAGE.md",
     "src/bin/direct-orders/README.md",
     ".env.example"
   ],
@@ -29,7 +33,10 @@
     "validate": "npm run typecheck && npm run build && npm pack --dry-run",
     "create-mango-account": "ts-node src/bin/create-mango-account.ts",
     "deposit-usdc": "ts-node src/bin/deposit-usdc.ts",
-    "direct-place-order": "ts-node src/bin/direct-orders/place.ts"
+    "direct-place-order": "ts-node src/bin/direct-orders/place.ts",
+    "smoke-check": "ts-node src/bin/smoke-check.ts",
+    "simulate": "ts-node src/bin/simulate.ts",
+    "portfolio": "ts-node src/bin/portfolio.ts"
   },
   "dependencies": {
     "@blockworks-foundation/mango-v4": "^0.24.0",

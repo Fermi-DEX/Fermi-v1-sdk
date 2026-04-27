@@ -123,6 +123,77 @@ export type HarnessAirdropDepositResponse = {
 
 export type RelayIntentAcceptedRequest = Record<string, unknown>;
 
+export type SimulateTradeRequest = {
+  kind?: 'perp_place_order';
+  market?: string | number;
+  market_index?: number;
+  side: 'buy' | 'sell' | 'bid' | 'ask' | 'long' | 'short';
+  quantity: number;
+  price?: number | null;
+  order_type?: 'limit' | 'market' | 'ioc' | 'postonly' | 'postonlyslide';
+  reduce_only?: boolean;
+};
+
+export type SimulateRequest = {
+  owner: PublicKey | string;
+  mango_account?: PublicKey | string;
+  trade: SimulateTradeRequest;
+};
+
+export type SimulateMarginSnapshot = {
+  equity_ui_quote: number;
+  init_health_ui_quote: number;
+  maint_health_ui_quote: number;
+  init_health_ratio: number;
+  maint_health_ratio: number;
+};
+
+export type SimulateResponse = {
+  view: 'optimistic';
+  owner: string;
+  mango_account: string;
+  cached_age_ms: number;
+  snapshot_age_ms: number | null;
+  optimistic_overlay_applied: boolean;
+  optimistic_markets_applied: string[];
+  trade: {
+    kind: 'perp_place_order';
+    market: string;
+    market_index: number;
+    side: 'buy' | 'sell';
+    quantity_ui: number;
+    base_lots: string;
+    price_ui: number;
+    price_source: 'caller' | 'oracle';
+    order_type: string;
+    reduce_only: boolean;
+  };
+  before: SimulateMarginSnapshot;
+  after: SimulateMarginSnapshot;
+  delta: {
+    equity_ui_quote: number;
+    init_health_ui_quote: number;
+    maint_health_ui_quote: number;
+  };
+  would_reject: boolean;
+  reject_reasons: string[];
+  warnings: string[];
+  compute_ms: number;
+};
+
+export type SimulateWarmRequest = {
+  owner: PublicKey | string;
+  mango_account?: PublicKey | string;
+};
+
+export type SimulateWarmResponse = {
+  owner: string;
+  group: string;
+  cached_mango_accounts: string[];
+  cache_ttl_ms: number;
+  load_ms: number;
+};
+
 type MarketListItem = {
   market: string;
   view: QueueView;
@@ -415,5 +486,28 @@ export class ContinuumHarnessClient {
 
   async adminReplay(): Promise<Record<string, unknown>> {
     return await this.request<Record<string, unknown>>('POST', '/admin/replay', {});
+  }
+
+  // Prefetch a user's MangoAccount(s) into the harness's in-process simulate
+  // cache. Pair with simulate() for sub-ms hot-path responses while a UI is
+  // tracking a live quantity input. Cache TTL is reported in the response.
+  async simulateWarm(
+    params: SimulateWarmRequest,
+  ): Promise<SimulateWarmResponse> {
+    return await this.request<SimulateWarmResponse>('POST', '/simulate/warm', {
+      owner: toBase58(params.owner)!,
+      mango_account: toBase58(params.mango_account),
+    });
+  }
+
+  // Project a proposed trade onto the optimistic harness state and return
+  // before/after margin numbers plus a rejection flag. Reads cache only —
+  // call simulateWarm() (or any /state/users/<owner> endpoint) first.
+  async simulate(params: SimulateRequest): Promise<SimulateResponse> {
+    return await this.request<SimulateResponse>('POST', '/simulate', {
+      owner: toBase58(params.owner)!,
+      mango_account: toBase58(params.mango_account),
+      trade: params.trade,
+    });
   }
 }
