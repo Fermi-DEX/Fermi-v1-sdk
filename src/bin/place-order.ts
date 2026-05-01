@@ -6,15 +6,16 @@ import {
   PerpOrderType,
   PerpSelfTradeBehavior,
 } from '@blockworks-foundation/mango-v4';
-import { createMangoContext } from '../../context';
-import { submitPerpOrderDirect } from '../../trading';
+import { createMangoContext } from '../context';
+import { ContinuumRelayerClient } from '../relayerClient';
+import { submitPerpOrderViaRelayer } from '../trading';
 import {
   clusterFromEnv,
   clusterUrlFromEnv,
   groupPkFromEnv,
-  harnessUrlFromEnv,
+  relayerAddrFromEnv,
   requiredEnv,
-} from '../env';
+} from './env';
 
 function optionalNumberEnv(name: string): number | undefined {
   const value = process.env[name];
@@ -70,7 +71,7 @@ function parseSide(value: string): PerpOrderSide {
     case 'sell':
       return PerpOrderSide.ask;
     default:
-      throw new Error(`unsupported DIRECT_ORDER_SIDE: ${value}`);
+      throw new Error(`unsupported PERP_ORDER_SIDE: ${value}`);
   }
 }
 
@@ -88,7 +89,7 @@ function parseOrderType(value: string): PerpOrderType {
     case 'postonlyslide':
       return PerpOrderType.postOnlySlide;
     default:
-      throw new Error(`unsupported DIRECT_ORDER_TYPE: ${value}`);
+      throw new Error(`unsupported PERP_ORDER_TYPE: ${value}`);
   }
 }
 
@@ -101,76 +102,75 @@ function parseSelfTradeBehavior(value: string): PerpSelfTradeBehavior {
     case 'aborttransaction':
       return PerpSelfTradeBehavior.abortTransaction;
     default:
-      throw new Error(`unsupported DIRECT_ORDER_SELF_TRADE_BEHAVIOR: ${value}`);
+      throw new Error(`unsupported PERP_ORDER_SELF_TRADE_BEHAVIOR: ${value}`);
   }
 }
 
 async function main(): Promise<void> {
-  const cluster = clusterFromEnv();
-  const marketIndex = Number(
-    process.env.DIRECT_ORDER_MARKET_INDEX ||
-      process.env.PERP_MARKET_INDEX ||
-      '0',
-  );
+  const marketIndex = Number(process.env.PERP_ORDER_MARKET_INDEX || process.env.PERP_MARKET_INDEX || '0');
   if (!Number.isInteger(marketIndex) || marketIndex < 0) {
-    throw new Error('DIRECT_ORDER_MARKET_INDEX must be a non-negative integer');
+    throw new Error('PERP_ORDER_MARKET_INDEX must be a non-negative integer');
   }
 
   const context = await createMangoContext({
-    cluster,
+    cluster: clusterFromEnv(),
     clusterUrl: clusterUrlFromEnv(),
     deployment: process.env.CONTINUUM_DEPLOYMENT,
-    harnessBaseUrl: harnessUrlFromEnv(),
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: groupPkFromEnv(),
     mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),
-    executionQueuePk: process.env.EXECUTION_QUEUE_PK,
     programId: process.env.PROGRAM_ID,
   });
-  if (context.deployment && !context.deployment.directPoolsInitialized) {
-    throw new Error(
-      `deployment ${context.deployment.name} does not have direct pools initialized; use the relayer commit/reveal path`,
-    );
-  }
+  const relayer = new ContinuumRelayerClient(
+    requiredEnv('RELAYER_ADDR', relayerAddrFromEnv()),
+  );
 
   const clientOrderId =
-    optionalU64Env('DIRECT_ORDER_CLIENT_ORDER_ID') ?? BigInt(Date.now());
-  const result = await submitPerpOrderDirect(context, {
-    marketIndex,
-    side: parseSide(process.env.DIRECT_ORDER_SIDE || 'bid'),
-    price: Number(requiredEnv('DIRECT_ORDER_PRICE')),
-    quantity: Number(requiredEnv('DIRECT_ORDER_QUANTITY')),
-    maxQuoteQuantity: optionalNumberEnv('DIRECT_ORDER_MAX_QUOTE_QUANTITY'),
-    clientOrderId,
-    orderType: parseOrderType(process.env.DIRECT_ORDER_TYPE || 'postOnlySlide'),
-    selfTradeBehavior: parseSelfTradeBehavior(
-      process.env.DIRECT_ORDER_SELF_TRADE_BEHAVIOR || 'decrementTake',
-    ),
-    reduceOnly: optionalBoolEnv('DIRECT_ORDER_REDUCE_ONLY') ?? false,
-    expiryTimestamp: optionalNumberEnv('DIRECT_ORDER_EXPIRY_TIMESTAMP') ?? 0,
-    limit: optionalNumberEnv('DIRECT_ORDER_MATCH_LIMIT') ?? 10,
-    expiresAtSlot: optionalBigIntEnv('DIRECT_ORDER_EXPIRES_AT_SLOT'),
-    nonce: optionalU64Env('DIRECT_ORDER_NONCE'),
-  });
+    optionalU64Env('PERP_ORDER_CLIENT_ORDER_ID') ?? BigInt(Date.now());
+  try {
+    const result = await submitPerpOrderViaRelayer(relayer, context, {
+      marketIndex,
+      side: parseSide(process.env.PERP_ORDER_SIDE || 'bid'),
+      price: Number(requiredEnv('PERP_ORDER_PRICE')),
+      quantity: Number(requiredEnv('PERP_ORDER_QUANTITY')),
+      maxQuoteQuantity: optionalNumberEnv('PERP_ORDER_MAX_QUOTE_QUANTITY'),
+      clientOrderId,
+      intentClientOrderId: optionalU64Env('PERP_INTENT_CLIENT_ORDER_ID'),
+      orderType: parseOrderType(process.env.PERP_ORDER_TYPE || 'postOnlySlide'),
+      selfTradeBehavior: parseSelfTradeBehavior(
+        process.env.PERP_ORDER_SELF_TRADE_BEHAVIOR || 'decrementTake',
+      ),
+      reduceOnly: optionalBoolEnv('PERP_ORDER_REDUCE_ONLY') ?? false,
+      expiryTimestamp: optionalNumberEnv('PERP_ORDER_EXPIRY_TIMESTAMP') ?? 0,
+      limit: optionalNumberEnv('PERP_ORDER_MATCH_LIMIT') ?? 10,
+      minExecuteSlot: optionalBigIntEnv('PERP_ORDER_MIN_EXECUTE_SLOT'),
+      expiresAtSlot: optionalBigIntEnv('PERP_ORDER_EXPIRES_AT_SLOT'),
+      maxFeeLamports:
+        process.env.PERP_ORDER_MAX_FEE_LAMPORTS ||
+        process.env.RELAYER_MAX_FEE_LAMPORTS ||
+        'AUTO',
+    });
 
-  process.stdout.write(
-    `${JSON.stringify(
-      {
-        ok: true,
-        mode: 'v5_direct_enqueue',
-        cluster,
-        market_index: marketIndex,
-        owner: context.user.publicKey.toBase58(),
-        mango_account: context.mangoAccount.publicKey.toBase58(),
-        client_order_id: clientOrderId.toString(),
-        tx_signature: result.txSignature,
-        direct_intent_message_b64:
-          result.directIntentMessage.toString('base64'),
-      },
-      null,
-      2,
-    )}\n`,
-  );
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          ok: true,
+          mode: 'relayer_commit_reveal',
+          cluster: context.config.cluster,
+          market_index: marketIndex,
+          owner: context.user.publicKey.toBase58(),
+          mango_account: context.mangoAccount.publicKey.toBase58(),
+          client_order_id: clientOrderId.toString(),
+          sequence: result.sequence,
+          tx_signature: result.tx_signature,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  } finally {
+    relayer.close();
+  }
 }
 
 main().catch((err) => {

@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import {
+  getAssociatedTokenAddress,
   Group,
   MangoAccount,
   MangoClient,
@@ -14,22 +15,33 @@ import {
   toPublicKey,
 } from '../context';
 import {
+  boolEnv,
   clusterFromEnv,
   clusterUrlFromEnv,
   commitmentFromEnv,
   deploymentFromEnv,
   groupPkFromEnv,
   requiredEnv,
+  usdcMintFromEnv,
 } from './env';
 
-function optionalIntEnv(name: string): number | undefined {
-  const value = process.env[name];
+function parseAmountUi(name: string): number {
+  const value = requiredEnv(name);
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`env var ${name} must be a positive number`);
+  }
+  return parsed;
+}
+
+function parseAccountNum(): number {
+  const value = process.env.MANGO_ACCOUNT_NUM;
   if (value === undefined || value === '') {
-    return undefined;
+    return 0;
   }
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error(`env var ${name} must be a non-negative integer`);
+    throw new Error('env var MANGO_ACCOUNT_NUM must be a non-negative integer');
   }
   return parsed;
 }
@@ -65,65 +77,72 @@ async function createClientAndGroup(): Promise<{
   return { user, connection, client, group, programId, deployment: deployment?.name };
 }
 
-async function resolveCreatedAccount(params: {
+async function resolveMangoAccount(params: {
   client: MangoClient;
   group: Group;
-  owner: Keypair;
+  owner: PublicKey;
+  mangoAccountPk?: string;
   accountNumber: number;
 }): Promise<MangoAccount> {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const found = await params.client.getMangoAccountForOwner(
-      params.group,
-      params.owner.publicKey,
-      params.accountNumber,
+  if (params.mangoAccountPk) {
+    return await params.client.getMangoAccount(
+      toPublicKey(params.mangoAccountPk),
     );
-    if (found) {
-      return found;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error(
-    `created mango account not found for owner=${params.owner.publicKey.toBase58()} account_num=${
-      params.accountNumber
-    }`,
+  const found = await params.client.getMangoAccountForOwner(
+    params.group,
+    params.owner,
+    params.accountNumber,
   );
+  if (!found) {
+    throw new Error(
+      `no mango account found for owner=${params.owner.toBase58()} account_num=${
+        params.accountNumber
+      }; set MANGO_ACCOUNT_PK or create the account first`,
+    );
+  }
+  return found;
 }
 
 async function main(): Promise<void> {
-  const accountNumber = optionalIntEnv('MANGO_ACCOUNT_NUM') ?? 0;
-  const tokenCount = optionalIntEnv('MANGO_ACCOUNT_TOKEN_COUNT');
-  const serum3Count = optionalIntEnv('MANGO_ACCOUNT_SERUM3_COUNT');
-  const perpCount = optionalIntEnv('MANGO_ACCOUNT_PERP_COUNT');
-  const perpOoCount = optionalIntEnv('MANGO_ACCOUNT_PERP_OO_COUNT');
-  const accountName = process.env.MANGO_ACCOUNT_NAME || '';
-
-  const { user, client, group, programId, deployment } = await createClientAndGroup();
-  const existing = await client.getMangoAccountForOwner(
-    group,
-    user.publicKey,
-    accountNumber,
-  );
-  if (existing) {
-    throw new Error(
-      `mango account already exists for owner=${user.publicKey.toBase58()} account_num=${accountNumber}: ${existing.publicKey.toBase58()}`,
-    );
-  }
-
-  const status = await client.createMangoAccount(
-    group,
-    accountNumber,
-    accountName,
-    tokenCount,
-    serum3Count,
-    perpCount,
-    perpOoCount,
-  );
-  const created = await resolveCreatedAccount({
+  const amountUi = parseAmountUi('USDC_AMOUNT_UI');
+  const allowBorrow = boolEnv('WITHDRAW_ALLOW_BORROW', false);
+  const { user, connection, client, group, programId, deployment } =
+    await createClientAndGroup();
+  const mangoAccount = await resolveMangoAccount({
     client,
     group,
-    owner: user,
-    accountNumber,
+    owner: user.publicKey,
+    mangoAccountPk: process.env.MANGO_ACCOUNT_PK,
+    accountNumber: parseAccountNum(),
   });
+
+  const mint = usdcMintFromEnv();
+  const mintPk = mint
+    ? toPublicKey(mint)
+    : group.getFirstBankForPerpSettlement().mint;
+  const ownerTokenAccount = await getAssociatedTokenAddress(
+    mintPk,
+    user.publicKey,
+    true,
+  );
+
+  const status = await client.tokenWithdraw(
+    group,
+    mangoAccount,
+    mintPk,
+    amountUi,
+    allowBorrow,
+  );
+
+  let ownerBalanceUi: string | null = null;
+  try {
+    ownerBalanceUi =
+      (await connection.getTokenAccountBalance(ownerTokenAccount)).value
+        .uiAmountString ?? null;
+  } catch {
+    ownerBalanceUi = null;
+  }
 
   process.stdout.write(
     `${JSON.stringify(
@@ -134,9 +153,12 @@ async function main(): Promise<void> {
         program_id: programId.toBase58(),
         group: group.publicKey.toBase58(),
         owner: user.publicKey.toBase58(),
-        mango_account: created.publicKey.toBase58(),
-        account_num: created.accountNum,
-        name: accountName,
+        mango_account: mangoAccount.publicKey.toBase58(),
+        mint: mintPk.toBase58(),
+        amount_ui: amountUi,
+        allow_borrow: allowBorrow,
+        owner_token_account: ownerTokenAccount.toBase58(),
+        owner_token_balance_ui_after: ownerBalanceUi,
       },
       null,
       2,

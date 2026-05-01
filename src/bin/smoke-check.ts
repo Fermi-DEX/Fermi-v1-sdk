@@ -2,10 +2,20 @@
 
 import 'dotenv/config';
 import { Connection } from '@solana/web3.js';
-import { ContinuumHarnessClient } from '../harness';
+import {
+  ContinuumHarnessClient,
+  HarnessDeploymentConfig,
+} from '../harness';
 import { ContinuumRelayerClient } from '../relayerClient';
 import { ContinuumFeeClient } from '../fees';
 import { toPublicKey } from '../context';
+import { ContinuumDeployment } from '../deployments';
+import {
+  deploymentFromEnv,
+  feeHttpUrlFromEnv,
+  harnessUrlFromEnv,
+  relayerAddrFromEnv,
+} from './env';
 
 type Probe = {
   name: string;
@@ -35,10 +45,66 @@ function pad(s: string, n: number): string {
   return s.length >= n ? s : s + ' '.repeat(n - s.length);
 }
 
+function validateHarnessConfig(
+  config: HarnessDeploymentConfig,
+  deployment: ContinuumDeployment,
+): void {
+  const mismatches: string[] = [];
+  if (config.program_id !== deployment.programId) {
+    mismatches.push(`program_id=${config.program_id}`);
+  }
+  if (config.group !== deployment.group) {
+    mismatches.push(`group=${config.group}`);
+  }
+
+  const usdc = config.tokens?.['0'];
+  if (usdc?.mint && usdc.mint !== deployment.usdcMint) {
+    mismatches.push(`usdc_mint=${usdc.mint}`);
+  }
+
+  const configMarkets = new Map(
+    config.markets.map((market) => [market.market_index, market]),
+  );
+  for (const market of deployment.markets) {
+    const configMarket = configMarkets.get(market.marketIndex);
+    if (!configMarket) {
+      mismatches.push(`missing_market=${market.marketIndex}`);
+      continue;
+    }
+    if (configMarket.perp_market !== market.perpMarket) {
+      mismatches.push(
+        `market_${market.marketIndex}.perp_market=${configMarket.perp_market}`,
+      );
+    }
+    if (configMarket.execution_queue?.address !== market.queue) {
+      mismatches.push(
+        `market_${market.marketIndex}.queue=${configMarket.execution_queue?.address}`,
+      );
+    }
+    if (
+      configMarket.execution_queue?.direct_pool &&
+      configMarket.execution_queue.direct_pool !== market.directPool
+    ) {
+      mismatches.push(
+        `market_${market.marketIndex}.direct_pool=${configMarket.execution_queue.direct_pool}`,
+      );
+    }
+  }
+
+  if (mismatches.length) {
+    throw new Error(
+      `harness /config does not match ${deployment.name}: ${mismatches.join(
+        ', ',
+      )}`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
+  const deployment = deploymentFromEnv();
   const probes: Probe[] = [];
 
-  const clusterUrl = process.env.CLUSTER_URL;
+  const clusterUrl = process.env.CLUSTER_URL || deployment?.rpcUrl;
   probes.push({
     name: 'rpc',
     required: true,
@@ -49,21 +115,28 @@ async function main(): Promise<void> {
     },
   });
 
-  const harnessUrl = process.env.HARNESS_URL;
+  const harnessUrl = harnessUrlFromEnv();
   probes.push({
     name: 'harness',
-    required: false,
+    required: harnessUrl !== undefined,
     fn: async () => {
       if (!harnessUrl) throw new Error('HARNESS_URL not set (skip)');
-      const h = await new ContinuumHarnessClient(harnessUrl).healthz();
-      return `mode=${h.mode || '?'} backend=${h.backend || '?'} markets=${h.markets_total ?? '?'} users=${h.users_total ?? '?'}`;
+      const client = new ContinuumHarnessClient(harnessUrl);
+      const h = await client.healthz();
+      let configDetail = '';
+      if (deployment) {
+        const config = await client.getConfig();
+        validateHarnessConfig(config, deployment);
+        configDetail = ` config=ok/${config.markets.length}m`;
+      }
+      return `mode=${h.mode || '?'} backend=${h.backend || '?'} markets=${h.markets_total ?? '?'} users=${h.users_total ?? '?'}${configDetail}`;
     },
   });
 
-  const relayerAddr = process.env.RELAYER_ADDR;
+  const relayerAddr = relayerAddrFromEnv();
   probes.push({
     name: 'relayer',
-    required: false,
+    required: relayerAddr !== undefined,
     fn: async () => {
       if (!relayerAddr) throw new Error('RELAYER_ADDR not set (skip)');
       // gRPC clients connect lazily; force a real call so we surface
@@ -101,12 +174,12 @@ async function main(): Promise<void> {
     },
   });
 
-  const feeUrl = process.env.FEE_HTTP_URL;
+  const feeUrl = feeHttpUrlFromEnv();
   const userOwner = process.env.USER_OWNER_PK || process.env.OWNER;
   const mangoAccount = process.env.MANGO_ACCOUNT_PK;
   probes.push({
     name: 'fees-http',
-    required: false,
+    required: feeUrl !== undefined,
     fn: async () => {
       if (!feeUrl) throw new Error('FEE_HTTP_URL not set (skip)');
       // If we have an account context, do a real /fees/status query.

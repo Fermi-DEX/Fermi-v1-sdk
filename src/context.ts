@@ -19,13 +19,20 @@ import {
 } from '@blockworks-foundation/mango-v4';
 import fs from 'fs';
 import path from 'path';
+import {
+  ContinuumDeployment,
+  findContinuumDeploymentByGroup,
+  getContinuumDeployment,
+  requireContinuumDeployment,
+} from './deployments';
 
 export type MangoContextConfig = {
-  cluster: Cluster;
-  clusterUrl: string;
+  cluster?: Cluster;
+  clusterUrl?: string;
+  deployment?: string;
   harnessBaseUrl?: string;
   userKeypair: string | number[] | Uint8Array;
-  groupPk: string | PublicKey;
+  groupPk?: string | PublicKey;
   mangoAccountPk: string | PublicKey;
   /**
    * Legacy/default execution queue address. Current v5 helpers derive the
@@ -36,8 +43,19 @@ export type MangoContextConfig = {
   commitment?: Commitment;
 };
 
+export type ResolvedMangoContextConfig = Omit<
+  MangoContextConfig,
+  'cluster' | 'clusterUrl' | 'groupPk' | 'mangoAccountPk' | 'programId'
+> & {
+  cluster: Cluster;
+  clusterUrl: string;
+  groupPk: PublicKey;
+  mangoAccountPk: PublicKey;
+  programId: PublicKey;
+};
+
 export type MangoContext = {
-  config: MangoContextConfig;
+  config: ResolvedMangoContextConfig;
   connection: Connection;
   wallet: Wallet;
   user: Keypair;
@@ -47,6 +65,7 @@ export type MangoContext = {
   executionQueuePk?: PublicKey;
   programId: PublicKey;
   harnessBaseUrl?: string;
+  deployment?: ContinuumDeployment;
 };
 
 export function loadKeypair(rawPathOrJson: string | number[] | Uint8Array): Keypair {
@@ -68,10 +87,94 @@ export function toPublicKey(value: string | PublicKey): PublicKey {
   return value instanceof PublicKey ? value : new PublicKey(value);
 }
 
+export function defaultClusterUrl(cluster: Cluster): string {
+  switch (cluster) {
+    case 'mainnet-beta':
+      return 'https://api.mainnet-beta.solana.com';
+    case 'testnet':
+      return 'https://api.testnet.solana.com';
+    case 'devnet':
+    default:
+      return 'https://api.devnet.solana.com';
+  }
+}
+
+export function resolveDeploymentForGroup(
+  groupPk: string | PublicKey,
+  deploymentName?: string,
+): ContinuumDeployment | undefined {
+  const group = toPublicKey(groupPk).toBase58();
+  if (deploymentName) {
+    const deployment = requireContinuumDeployment(deploymentName);
+    if (deployment.group !== group) {
+      throw new Error(
+        `CONTINUUM_DEPLOYMENT=${deploymentName} is for group ${deployment.group}, not ${group}`,
+      );
+    }
+    return deployment;
+  }
+  return findContinuumDeploymentByGroup(group);
+}
+
+export function resolveProgramIdForGroup(params: {
+  cluster: Cluster;
+  groupPk: string | PublicKey;
+  programId?: string | PublicKey;
+  deployment?: string;
+}): PublicKey {
+  const deployment = resolveDeploymentForGroup(
+    params.groupPk,
+    params.deployment,
+  );
+  if (deployment && deployment.cluster !== params.cluster) {
+    throw new Error(
+      `deployment ${deployment.name} is on ${deployment.cluster}, not ${params.cluster}`,
+    );
+  }
+
+  if (params.programId !== undefined) {
+    const programId = toPublicKey(params.programId);
+    if (deployment && deployment.programId !== programId.toBase58()) {
+      throw new Error(
+        `PROGRAM_ID=${programId.toBase58()} does not match deployment ${deployment.name} program ${deployment.programId}`,
+      );
+    }
+    return programId;
+  }
+
+  if (deployment) {
+    return new PublicKey(deployment.programId);
+  }
+  return MANGO_V4_ID[params.cluster];
+}
+
 export async function createMangoContext(config: MangoContextConfig): Promise<MangoContext> {
   const user = loadKeypair(config.userKeypair);
+  const namedDeployment = getContinuumDeployment(config.deployment);
+  if (config.deployment && !namedDeployment) {
+    requireContinuumDeployment(config.deployment);
+  }
+  const groupPk = config.groupPk
+    ? toPublicKey(config.groupPk)
+    : namedDeployment
+      ? new PublicKey(namedDeployment.group)
+      : undefined;
+  if (!groupPk) {
+    throw new Error('missing groupPk; set GROUP_PK or CONTINUUM_DEPLOYMENT');
+  }
+  const deployment = resolveDeploymentForGroup(groupPk, config.deployment);
+  const cluster = config.cluster ?? ((deployment?.cluster ?? 'devnet') as Cluster);
+  const clusterUrl =
+    config.clusterUrl ?? deployment?.rpcUrl ?? defaultClusterUrl(cluster);
+  const programId = resolveProgramIdForGroup({
+    cluster,
+    groupPk,
+    programId: config.programId,
+    deployment: config.deployment,
+  });
+  const harnessBaseUrl = config.harnessBaseUrl ?? deployment?.harnessUrl;
   const connection = new Connection(
-    config.clusterUrl,
+    clusterUrl,
     config.commitment ?? AnchorProvider.defaultOptions().commitment,
   );
   const wallet = new Wallet(user);
@@ -80,18 +183,25 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
     wallet,
     AnchorProvider.defaultOptions(),
   );
-  const programId =
-    config.programId !== undefined
-      ? toPublicKey(config.programId)
-      : MANGO_V4_ID[config.cluster];
-  const client = await MangoClient.connect(provider, config.cluster, programId, {
+  const client = await MangoClient.connect(provider, cluster, programId, {
     idsSource: 'get-program-accounts',
   });
-  const mangoAccount = await client.getMangoAccount(toPublicKey(config.mangoAccountPk));
-  const group = await client.getGroup(toPublicKey(config.groupPk));
+  const mangoAccountPk = toPublicKey(config.mangoAccountPk);
+  const mangoAccount = await client.getMangoAccount(mangoAccountPk);
+  const group = await client.getGroup(groupPk);
+  const resolvedConfig: ResolvedMangoContextConfig = {
+    ...config,
+    cluster,
+    clusterUrl,
+    deployment: deployment?.name ?? config.deployment,
+    groupPk,
+    mangoAccountPk,
+    programId,
+    harnessBaseUrl,
+  };
 
   return {
-    config,
+    config: resolvedConfig,
     connection,
     wallet,
     user,
@@ -103,7 +213,8 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
         ? toPublicKey(config.executionQueuePk)
         : undefined,
     programId,
-    harnessBaseUrl: config.harnessBaseUrl,
+    harnessBaseUrl,
+    deployment,
   };
 }
 
@@ -175,6 +286,15 @@ export async function buildCanonicalPerpRemainingAccounts(
         serumPosition.marketIndex !== Serum3Orders.Serum3MarketIndexUnset,
     )
     .map((serumPosition) => serumPosition.openOrders);
+  const openbookOpenOrders = (
+    (
+      context.mangoAccount as MangoAccount & {
+        openbookV2?: Array<{ marketIndex: number; openOrders: PublicKey }>;
+      }
+    ).openbookV2 ?? []
+  )
+    .filter((openbookPosition) => openbookPosition.marketIndex !== 65535)
+    .map((openbookPosition) => openbookPosition.openOrders);
   const healthRemainingAccounts = buildExecutionQueueHealthRemainingAccountKeys(
     {
       bankAccounts: mintInfos.map((mintInfo) => mintInfo.firstBank()),
@@ -182,6 +302,7 @@ export async function buildCanonicalPerpRemainingAccounts(
       perpMarkets: allPerpMarkets.map((market) => market.publicKey),
       perpOracles: allPerpMarkets.map((market) => market.oracle),
       serumOpenOrders,
+      openbookOpenOrders,
       fallbackOracles,
     },
   );

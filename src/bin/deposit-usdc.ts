@@ -2,23 +2,27 @@
 
 import 'dotenv/config';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
-import { Cluster, Connection, Keypair, PublicKey } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import {
   getAssociatedTokenAddress,
   Group,
-  MANGO_V4_ID,
   MangoAccount,
   MangoClient,
 } from '@blockworks-foundation/mango-v4';
-import { loadKeypair, toPublicKey } from '../context';
-
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`missing required env var ${name}`);
-  }
-  return value;
-}
+import {
+  loadKeypair,
+  resolveProgramIdForGroup,
+  toPublicKey,
+} from '../context';
+import {
+  clusterFromEnv,
+  clusterUrlFromEnv,
+  commitmentFromEnv,
+  deploymentFromEnv,
+  groupPkFromEnv,
+  requiredEnv,
+  usdcMintFromEnv,
+} from './env';
 
 function parseAmountUi(name: string): number {
   const value = requiredEnv(name);
@@ -41,38 +45,35 @@ function parseAccountNum(): number {
   return parsed;
 }
 
-function commitmentFromEnv() {
-  return (process.env.COMMITMENT ||
-    AnchorProvider.defaultOptions().commitment) as ReturnType<
-    typeof AnchorProvider.defaultOptions
-  >['commitment'];
-}
-
 async function createClientAndGroup(): Promise<{
   user: Keypair;
   connection: Connection;
   client: MangoClient;
   group: Group;
+  programId: PublicKey;
+  deployment?: string;
 }> {
-  const cluster = (process.env.CLUSTER || 'devnet') as Cluster;
+  const deployment = deploymentFromEnv();
+  const cluster = clusterFromEnv();
   const user = loadKeypair(requiredEnv('USER_KEYPAIR'));
-  const connection = new Connection(
-    requiredEnv('CLUSTER_URL'),
-    commitmentFromEnv(),
-  );
+  const connection = new Connection(clusterUrlFromEnv(), commitmentFromEnv());
   const provider = new AnchorProvider(
     connection,
     new Wallet(user),
     AnchorProvider.defaultOptions(),
   );
-  const programId = process.env.PROGRAM_ID
-    ? toPublicKey(process.env.PROGRAM_ID)
-    : MANGO_V4_ID[cluster];
+  const groupPk = toPublicKey(groupPkFromEnv());
+  const programId = resolveProgramIdForGroup({
+    cluster,
+    groupPk,
+    programId: process.env.PROGRAM_ID,
+    deployment: deployment?.name,
+  });
   const client = await MangoClient.connect(provider, cluster, programId, {
     idsSource: 'get-program-accounts',
   });
-  const group = await client.getGroup(toPublicKey(requiredEnv('GROUP_PK')));
-  return { user, connection, client, group };
+  const group = await client.getGroup(groupPk);
+  return { user, connection, client, group, programId, deployment: deployment?.name };
 }
 
 async function resolveMangoAccount(params: {
@@ -104,7 +105,8 @@ async function resolveMangoAccount(params: {
 
 async function main(): Promise<void> {
   const amountUi = parseAmountUi('USDC_AMOUNT_UI');
-  const { user, connection, client, group } = await createClientAndGroup();
+  const { user, connection, client, group, programId, deployment } =
+    await createClientAndGroup();
   const mangoAccount = await resolveMangoAccount({
     client,
     group,
@@ -113,8 +115,9 @@ async function main(): Promise<void> {
     accountNumber: parseAccountNum(),
   });
 
-  const mintPk = process.env.USDC_MINT
-    ? toPublicKey(process.env.USDC_MINT)
+  const mint = usdcMintFromEnv();
+  const mintPk = mint
+    ? toPublicKey(mint)
     : group.getFirstBankForPerpSettlement().mint;
   const ownerTokenAccount = await getAssociatedTokenAddress(
     mintPk,
@@ -144,6 +147,8 @@ async function main(): Promise<void> {
       {
         ok: true,
         tx_signature: status.signature,
+        deployment,
+        program_id: programId.toBase58(),
         group: group.publicKey.toBase58(),
         owner: user.publicKey.toBase58(),
         mango_account: mangoAccount.publicKey.toBase58(),

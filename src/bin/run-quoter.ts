@@ -1,20 +1,19 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
-import { Cluster } from '@solana/web3.js';
 import { PerpOrderSide } from '@blockworks-foundation/mango-v4';
 import { createMangoContext } from '../context';
 import { ContinuumHarnessClient } from '../harness';
 import { ContinuumRelayerClient } from '../relayerClient';
 import { CoinGeckoFairPriceProvider, RelayerPerpQuoterBot } from '../quoter';
-
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`missing required env var ${name}`);
-  }
-  return value;
-}
+import {
+  clusterFromEnv,
+  clusterUrlFromEnv,
+  groupPkFromEnv,
+  harnessUrlFromEnv,
+  relayerAddrFromEnv,
+  requiredEnv,
+} from './env';
 
 function parseSide(value: string): PerpOrderSide {
   switch (value.toLowerCase()) {
@@ -30,18 +29,21 @@ function parseSide(value: string): PerpOrderSide {
 }
 
 async function main(): Promise<void> {
-  const cluster = (process.env.CLUSTER || 'devnet') as Cluster;
+  const cluster = clusterFromEnv();
   const context = await createMangoContext({
     cluster,
-    clusterUrl: requiredEnv('CLUSTER_URL'),
+    clusterUrl: clusterUrlFromEnv(),
+    deployment: process.env.CONTINUUM_DEPLOYMENT,
     userKeypair: requiredEnv('USER_KEYPAIR'),
-    groupPk: requiredEnv('GROUP_PK'),
+    groupPk: groupPkFromEnv(),
     mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),
     executionQueuePk: process.env.EXECUTION_QUEUE_PK,
     programId: process.env.PROGRAM_ID,
   });
-  const relayer = new ContinuumRelayerClient(requiredEnv('RELAYER_ADDR'));
-  const harnessUrl = process.env.HARNESS_URL;
+  const relayer = new ContinuumRelayerClient(
+    requiredEnv('RELAYER_ADDR', relayerAddrFromEnv()),
+  );
+  const harnessUrl = harnessUrlFromEnv();
   const harness = harnessUrl ? new ContinuumHarnessClient(harnessUrl) : null;
   const fairPriceProvider = new CoinGeckoFairPriceProvider(
     process.env.COINGECKO_ASSET_ID || 'solana',

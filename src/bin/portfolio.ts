@@ -2,12 +2,7 @@
 
 import 'dotenv/config';
 import { ContinuumHarnessClient, QueueView } from '../harness';
-
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`missing required env var ${name}`);
-  return value;
-}
+import { harnessUrlFromEnv, requiredEnv } from './env';
 
 function fmtUsd(n: unknown): string {
   const v = Number(n);
@@ -30,7 +25,7 @@ function pickN(o: any, ...keys: string[]): number | undefined {
 }
 
 async function main(): Promise<void> {
-  const harnessUrl = requiredEnv('HARNESS_URL');
+  const harnessUrl = requiredEnv('HARNESS_URL', harnessUrlFromEnv());
   const owner = requiredEnv('OWNER');
   const view = ((process.env.VIEW || 'optimistic') as QueueView);
 

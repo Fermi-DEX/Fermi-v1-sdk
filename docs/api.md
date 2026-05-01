@@ -22,6 +22,10 @@ Default local URL:
 http://127.0.0.1:9091
 ```
 
+The `fermi-r6-mainnet` smoke deployment uses `http://127.0.0.1:9191` for the
+harness, `127.0.0.1:9190` for relayer gRPC, and `http://127.0.0.1:9193` for
+fee HTTP.
+
 Set via:
 
 - `CONTINUUM_HARNESS_BIND_ADDR`
@@ -39,6 +43,8 @@ Set via:
 - `http://127.0.0.1:9091/state/candles/<market>?view=optimistic|confirmed&resolution_sec=60&limit=200`
 - `http://127.0.0.1:9091/airdrop` (POST body with connected wallet pubkey)
 - `http://127.0.0.1:9091/airdrop-deposit` (POST body with connected wallet pubkey)
+- `http://127.0.0.1:9091/config`
+- `http://127.0.0.1:9091/state/bootstrap`
 
 ## Authentication
 
@@ -113,6 +119,56 @@ Response `200`:
 {
   "ok": true,
   "ts_ms": 1772349020285
+}
+```
+
+### `GET /config`
+
+Returns public deployment metadata that clients need for transaction
+construction without embedding mainnet constants. The response excludes
+local keypair paths and private material.
+
+Alias: `GET /state/bootstrap`.
+
+Response `200`:
+
+```json
+{
+  "version": 1,
+  "cluster": "mainnet-beta",
+  "program_id": "...",
+  "group": "...",
+  "authority_state": "...",
+  "ctm_signer": "...",
+  "tokens": {
+    "0": {
+      "symbol": "USDC",
+      "mint": "...",
+      "bank": "...",
+      "vault": "...",
+      "oracle": "...",
+      "mint_info": "...",
+      "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    }
+  },
+  "markets": [
+    {
+      "market_index": 0,
+      "name": "SOL-PERP",
+      "perp_market": "...",
+      "bids": "...",
+      "asks": "...",
+      "event_queue": "...",
+      "oracle": "...",
+      "base_lot_size": "100",
+      "quote_lot_size": "1",
+      "execution_queue": {
+        "address": "...",
+        "direct_pool": "...",
+        "layout_version": 7
+      }
+    }
+  ]
 }
 ```
 

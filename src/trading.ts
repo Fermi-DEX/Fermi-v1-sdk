@@ -115,6 +115,27 @@ function executionQueueForMarket(context: MangoContext, marketIndex: number) {
   );
 }
 
+function uiPriceToLotsForSide(
+  perpMarket: {
+    uiPriceToLots(price: number): { toString(): string };
+    uiPriceToLotsForSide?: (
+      price: number,
+      side: PerpOrderSide,
+    ) => { toString(): string };
+    uiPriceToLotsRoundUp?: (price: number) => { toString(): string };
+  },
+  price: number,
+  side: PerpOrderSide,
+): bigint {
+  if (perpMarket.uiPriceToLotsForSide) {
+    return BigInt(perpMarket.uiPriceToLotsForSide(price, side).toString());
+  }
+  if (side === PerpOrderSide.ask && perpMarket.uiPriceToLotsRoundUp) {
+    return BigInt(perpMarket.uiPriceToLotsRoundUp(price).toString());
+  }
+  return BigInt(perpMarket.uiPriceToLots(price).toString());
+}
+
 async function maybeRegisterDirectLane(context: MangoContext): Promise<void> {
   if (!context.harnessBaseUrl) {
     return;
@@ -255,7 +276,7 @@ export async function submitPerpOrderViaRelayer(
   );
   const payload = encodePerpPlaceOrderV2QueuePayload({
     side: params.side,
-    priceLots: BigInt(perpMarket.uiPriceToLots(params.price).toString()),
+    priceLots: uiPriceToLotsForSide(perpMarket, params.price, params.side),
     maxBaseLots: BigInt(perpMarket.uiBaseToLots(params.quantity).toString()),
     maxQuoteLots: params.maxQuoteQuantity
       ? BigInt(perpMarket.uiQuoteToLots(params.maxQuoteQuantity).toString())
@@ -308,7 +329,7 @@ export async function submitPerpOrderDirect(
   );
   const payload = encodePerpPlaceOrderV2QueuePayload({
     side: params.side,
-    priceLots: BigInt(perpMarket.uiPriceToLots(params.price).toString()),
+    priceLots: uiPriceToLotsForSide(perpMarket, params.price, params.side),
     maxBaseLots: BigInt(perpMarket.uiBaseToLots(params.quantity).toString()),
     maxQuoteLots: params.maxQuoteQuantity
       ? BigInt(perpMarket.uiQuoteToLots(params.maxQuoteQuantity).toString())

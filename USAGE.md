@@ -31,9 +31,9 @@ Required for **relayer/harness** flows:
 
 | var               | example                                         |
 |-------------------|-------------------------------------------------|
-| `HARNESS_URL`     | `http://harness-host:9091`                      |
-| `RELAYER_ADDR`    | `relayer-host:9090`                             |
-| `FEE_HTTP_URL`    | `http://relayer-host:9093`                      |
+| `HARNESS_URL`     | `http://harness-host:9191`                      |
+| `RELAYER_ADDR`    | `relayer-host:9190`                             |
+| `FEE_HTTP_URL`    | `http://relayer-host:9193`                      |
 | `MANGO_ACCOUNT_PK`| pubkey of the account you'll trade with         |
 
 If you don't have a Mango account yet, skip ahead to
@@ -65,7 +65,16 @@ PASS  fees-http      31ms     deposit=Bv... balance=0
 - `SKIP` means the corresponding env var isn't set — fine if you genuinely
   don't need that surface.
 - `FAIL` on `relayer` is usually a wrong port, a firewall, or the binary not
-  running. The relayer's gRPC default is `:9090`.
+  running. The mainnet smoke relayer's gRPC default is `:9190`.
+
+Read the harness-published transaction-construction config:
+
+```bash
+npm run config
+```
+
+This calls `GET /config` by default. Set `CONFIG_SOURCE=bootstrap` to call the
+alias `GET /state/bootstrap`.
 
 ---
 
@@ -74,19 +83,26 @@ PASS  fees-http      31ms     deposit=Bv... balance=0
 For a brand-new wallet, create the account and fund it:
 
 ```bash
-npm run create-mango-account     # creates and persists MANGO_ACCOUNT_PK
+npm run create-mango-account     # prints the created MANGO_ACCOUNT_PK
 npm run deposit-usdc             # deposits USDC_AMOUNT_UI from your ATA
+npm run withdraw-usdc            # withdraws USDC_AMOUNT_UI back to your ATA
 ```
 
 The create script honors `MANGO_ACCOUNT_NUM` and `MANGO_ACCOUNT_NAME` so you
-can run it multiple times for sub-accounts. The deposit script reads
-`USDC_AMOUNT_UI` and `USDC_MINT` (or falls back to the group's perp settle
+can run it multiple times for sub-accounts. The deposit and withdraw scripts
+read `USDC_AMOUNT_UI` and `USDC_MINT` (or fall back to the group's perp settle
 mint).
 
 Quick portfolio readout:
 
 ```bash
 OWNER=<your-wallet-pubkey> npm run portfolio
+```
+
+Backup on-chain readout:
+
+```bash
+npm run onchain-portfolio
 ```
 
 Sample output:
@@ -212,6 +228,18 @@ expired. Either:
 Two paths:
 
 **Via the relayer (recommended for production-style flow):**
+
+CLI:
+
+```bash
+PERP_ORDER_MARKET_INDEX=0 \
+PERP_ORDER_SIDE=bid \
+PERP_ORDER_PRICE=100 \
+PERP_ORDER_QUANTITY=0.01 \
+npm run place-order
+```
+
+Programmatic:
 
 ```ts
 import {

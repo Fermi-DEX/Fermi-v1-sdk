@@ -20,6 +20,7 @@ For build and environment setup, keep the existing repo docs in reach:
 ## What It Covers
 
 - Harness reads via `ContinuumHarnessClient`
+  - includes deployment discovery through `getConfig()` / `getBootstrap()`
 - Relayer submits via `ContinuumRelayerClient`
 - Mango bootstrap via `createMangoContext`
 - High-level helpers:
@@ -57,10 +58,36 @@ Deposit USDC from the configured wallet ATA into Mango:
 npm run deposit-usdc
 ```
 
+Withdraw USDC back to the configured wallet ATA:
+
+```bash
+npm run withdraw-usdc
+```
+
 The create script uses `GROUP_PK`, `USER_KEYPAIR`, and optional sizing env vars such as
-`MANGO_ACCOUNT_NUM` and `MANGO_ACCOUNT_NAME`. The deposit script uses the same base env,
-resolves the Mango account from `MANGO_ACCOUNT_PK` or `MANGO_ACCOUNT_NUM`, and deposits
-`USDC_AMOUNT_UI` using `USDC_MINT` if set or the group's perp-settlement mint otherwise.
+`MANGO_ACCOUNT_NUM` and `MANGO_ACCOUNT_NAME`. The deposit and withdraw scripts use the
+same base env, resolve the Mango account from `MANGO_ACCOUNT_PK` or `MANGO_ACCOUNT_NUM`,
+and move `USDC_AMOUNT_UI` using `USDC_MINT` if set or the group's perp-settlement mint
+otherwise.
+
+Fetch the harness-published deployment config:
+
+```bash
+npm run config
+```
+
+Read account state through the harness or directly from chain:
+
+```bash
+OWNER=<wallet-pubkey> npm run portfolio
+npm run onchain-portfolio
+```
+
+Submit a perp order through the relayer commit/reveal path:
+
+```bash
+PERP_ORDER_SIDE=bid PERP_ORDER_PRICE=100 PERP_ORDER_QUANTITY=0.01 npm run place-order
+```
 
 ## Direct Order Scripts
 
@@ -107,12 +134,12 @@ Required values:
 - `USER_KEYPAIR`: absolute path to the user keypair JSON, or raw JSON
 - `GROUP_PK`: Mango group public key
 - `MANGO_ACCOUNT_PK`: Mango account to trade with
-- `RELAYER_ADDR`: gRPC relayer address, for example `host:9090`
+- `RELAYER_ADDR`: gRPC relayer address, for example `host:9190`
 
 Optional:
 
-- `HARNESS_URL`: Continuum harness base URL, for example `http://host:9091`
-- `FEE_HTTP_URL`: execution-engine HTTP URL for fee status and deposits, for example `http://host:9093`
+- `HARNESS_URL`: Continuum harness base URL, for example `http://host:9191`
+- `FEE_HTTP_URL`: execution-engine HTTP URL for fee status and deposits, for example `http://host:9193`
 - `PROGRAM_ID`: override Mango program id
 - `EXECUTION_QUEUE_PK`: legacy/default queue address; current v5 helpers derive the per-market queue PDA from `PROGRAM_ID`, `GROUP_PK`, and `marketIndex`
 - `RELAYER_MAX_FEE_LAMPORTS`: relayer fee cap in lamports, or `AUTO`

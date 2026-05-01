@@ -87,6 +87,67 @@ export type MarketCandle = Record<string, unknown>;
 export type EngineSnapshot = Record<string, unknown>;
 export type HarnessStateFullMarket = Record<string, unknown>;
 
+export type HarnessConfigToken = {
+  token_index: number;
+  symbol: string;
+  mint: string;
+  bank: string;
+  vault: string;
+  oracle: string;
+  mint_info?: string;
+  token_program?: string;
+  decimals?: number;
+  [key: string]: unknown;
+};
+
+export type HarnessConfigMarket = {
+  market_index: number;
+  name: string;
+  base_symbol?: string;
+  quote_symbol?: string;
+  perp_market: string;
+  bids: string;
+  asks: string;
+  event_queue: string;
+  oracle: string;
+  base_decimals?: number;
+  quote_decimals?: number;
+  base_lot_size?: string;
+  quote_lot_size?: string;
+  execution_queue?: {
+    address: string;
+    direct_pool?: string;
+    layout_version?: number;
+    capacity?: number;
+    replay_cache_capacity?: number;
+    bytes?: number;
+    soft_limit?: number;
+    gap_wait_slots?: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+export type HarnessDeploymentConfig = {
+  version: number;
+  generated_ts_ms?: number;
+  mode?: string;
+  cluster?: string;
+  rpc_url?: string;
+  program_id: string;
+  group: string;
+  group_num?: number;
+  authority_state?: string;
+  ctm_signer?: string;
+  admins?: Record<string, string>;
+  queue_mode?: string;
+  address_lookup_tables?: string[];
+  tokens?: Record<string, HarnessConfigToken>;
+  markets: HarnessConfigMarket[];
+  endpoints?: Record<string, string>;
+  [key: string]: unknown;
+};
+
 export type HarnessAirdropRequest = {
   owner: string;
   ui_amount?: number;
@@ -285,6 +346,14 @@ export class ContinuumHarnessClient {
 
   async livez(): Promise<HarnessLiveness> {
     return await this.request<HarnessLiveness>('GET', '/livez');
+  }
+
+  async getConfig(): Promise<HarnessDeploymentConfig> {
+    return await this.request<HarnessDeploymentConfig>('GET', '/config');
+  }
+
+  async getBootstrap(): Promise<HarnessDeploymentConfig> {
+    return await this.request<HarnessDeploymentConfig>('GET', '/state/bootstrap');
   }
 
   async getMarkets(params?: {
