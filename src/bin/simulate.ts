@@ -2,6 +2,7 @@
 
 import 'dotenv/config';
 import { ContinuumHarnessClient, SimulateResponse } from '../harness';
+import { apiKeyFromEnv, gatewayUrlFromEnv } from './env';
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -32,7 +33,6 @@ function fmtRatio(n: number): string {
 }
 
 async function main(): Promise<void> {
-  const harnessUrl = requiredEnv('HARNESS_URL');
   const owner = requiredEnv('SIMULATE_OWNER');
   const mangoAccount = optionalEnv('SIMULATE_MANGO_ACCOUNT');
   const market = optionalEnv('SIMULATE_MARKET') || 'SOL-PERP';
@@ -49,7 +49,10 @@ async function main(): Promise<void> {
     throw new Error(`SIMULATE_SIDE must be 'buy' or 'sell', got ${side}`);
   }
 
-  const harness = new ContinuumHarnessClient(harnessUrl);
+  const harness = new ContinuumHarnessClient({
+    gatewayUrl: gatewayUrlFromEnv(),
+    apiKey: apiKeyFromEnv(),
+  });
 
   // Warm the cache. /simulate is cache-only; without a warm (or a recent
   // /state/users/<owner> hit) it returns 425.

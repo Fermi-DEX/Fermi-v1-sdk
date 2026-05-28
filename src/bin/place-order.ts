@@ -10,10 +10,12 @@ import { createMangoContext } from '../context';
 import { ContinuumRelayerClient } from '../relayerClient';
 import { submitPerpOrderViaRelayer } from '../trading';
 import {
+  apiKeyFromEnv,
   clusterFromEnv,
   clusterUrlFromEnv,
+  gatewayGrpcAddrFromEnv,
+  gatewayUrlFromEnv,
   groupPkFromEnv,
-  relayerAddrFromEnv,
   requiredEnv,
 } from './env';
 
@@ -112,18 +114,23 @@ async function main(): Promise<void> {
     throw new Error('PERP_ORDER_MARKET_INDEX must be a non-negative integer');
   }
 
+  const apiKey = apiKeyFromEnv();
   const context = await createMangoContext({
     cluster: clusterFromEnv(),
     clusterUrl: clusterUrlFromEnv(),
     deployment: process.env.CONTINUUM_DEPLOYMENT,
+    gatewayUrl: gatewayUrlFromEnv(),
+    gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
+    apiKey,
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: groupPkFromEnv(),
     mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),
     programId: process.env.PROGRAM_ID,
   });
-  const relayer = new ContinuumRelayerClient(
-    requiredEnv('RELAYER_ADDR', relayerAddrFromEnv()),
-  );
+  const relayer = new ContinuumRelayerClient({
+    gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
+    apiKey,
+  });
 
   const clientOrderId =
     optionalU64Env('PERP_ORDER_CLIENT_ORDER_ID') ?? BigInt(Date.now());

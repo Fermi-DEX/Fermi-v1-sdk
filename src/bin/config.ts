@@ -2,12 +2,13 @@
 
 import 'dotenv/config';
 import { ContinuumHarnessClient } from '../harness';
-import { harnessUrlFromEnv, requiredEnv } from './env';
+import { apiKeyFromEnv, gatewayUrlFromEnv } from './env';
 
 async function main(): Promise<void> {
-  const harness = new ContinuumHarnessClient(
-    requiredEnv('HARNESS_URL', harnessUrlFromEnv()),
-  );
+  const harness = new ContinuumHarnessClient({
+    gatewayUrl: gatewayUrlFromEnv(),
+    apiKey: apiKeyFromEnv(),
+  });
   const config = process.env.CONFIG_SOURCE === 'bootstrap'
     ? await harness.getBootstrap()
     : await harness.getConfig();

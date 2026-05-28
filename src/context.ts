@@ -25,12 +25,18 @@ import {
   getContinuumDeployment,
   requireContinuumDeployment,
 } from './deployments';
+import { requireApiKey } from './auth';
 
 export type MangoContextConfig = {
   cluster?: Cluster;
   clusterUrl?: string;
   deployment?: string;
-  harnessBaseUrl?: string;
+  /** Continuum proxy gateway REST base URL. Required. */
+  gatewayUrl?: string;
+  /** Continuum proxy gRPC address `host:port`. Required if using the relayer. */
+  gatewayGrpcAddr?: string;
+  /** UUID API key — mandatory. Used as `x-api-key` on all SDK calls. */
+  apiKey: string;
   userKeypair: string | number[] | Uint8Array;
   groupPk?: string | PublicKey;
   mangoAccountPk: string | PublicKey;
@@ -64,7 +70,12 @@ export type MangoContext = {
   mangoAccount: MangoAccount;
   executionQueuePk?: PublicKey;
   programId: PublicKey;
-  harnessBaseUrl?: string;
+  /** Resolved proxy gateway REST base URL. */
+  gatewayUrl?: string;
+  /** Resolved proxy gateway gRPC `host:port`. */
+  gatewayGrpcAddr?: string;
+  /** Validated UUID API key. */
+  apiKey: string;
   deployment?: ContinuumDeployment;
 };
 
@@ -149,6 +160,7 @@ export function resolveProgramIdForGroup(params: {
 }
 
 export async function createMangoContext(config: MangoContextConfig): Promise<MangoContext> {
+  const apiKey = requireApiKey(config.apiKey, 'createMangoContext');
   const user = loadKeypair(config.userKeypair);
   const namedDeployment = getContinuumDeployment(config.deployment);
   if (config.deployment && !namedDeployment) {
@@ -172,7 +184,8 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
     programId: config.programId,
     deployment: config.deployment,
   });
-  const harnessBaseUrl = config.harnessBaseUrl ?? deployment?.harnessUrl;
+  const gatewayUrl = config.gatewayUrl ?? deployment?.gatewayUrl;
+  const gatewayGrpcAddr = config.gatewayGrpcAddr ?? deployment?.gatewayGrpcAddr;
   const connection = new Connection(
     clusterUrl,
     config.commitment ?? AnchorProvider.defaultOptions().commitment,
@@ -197,7 +210,9 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
     groupPk,
     mangoAccountPk,
     programId,
-    harnessBaseUrl,
+    gatewayUrl,
+    gatewayGrpcAddr,
+    apiKey,
   };
 
   return {
@@ -213,7 +228,9 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
         ? toPublicKey(config.executionQueuePk)
         : undefined,
     programId,
-    harnessBaseUrl,
+    gatewayUrl,
+    gatewayGrpcAddr,
+    apiKey,
     deployment,
   };
 }

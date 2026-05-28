@@ -92,10 +92,17 @@ async function main(): Promise<void> {
     process.env.HARNESS_BASE_URL ?? 'http://127.0.0.1:19091';
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as E2EConfig;
 
+  const apiKey =
+    process.env.FERMI_API_KEY ??
+    (() => {
+      throw new Error('FERMI_API_KEY is required (UUID)');
+    })();
   const context = await createMangoContext({
     cluster: 'devnet',
     clusterUrl: config.clusterUrl,
-    harnessBaseUrl,
+    gatewayUrl: process.env.FERMI_API_URL ?? harnessBaseUrl,
+    gatewayGrpcAddr: process.env.FERMI_API_GRPC_ADDR,
+    apiKey,
     userKeypair: config.maker.keypairPath,
     groupPk: config.group,
     mangoAccountPk: config.maker.mangoAccount,

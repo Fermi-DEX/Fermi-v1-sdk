@@ -4,8 +4,11 @@ import 'dotenv/config';
 import { PublicKey } from '@solana/web3.js';
 import { createMangoContext } from '../context';
 import {
+  apiKeyFromEnv,
   clusterFromEnv,
   clusterUrlFromEnv,
+  gatewayGrpcAddrFromEnv,
+  gatewayUrlFromEnv,
   groupPkFromEnv,
   requiredEnv,
 } from './env';
@@ -47,6 +50,9 @@ async function main(): Promise<void> {
     cluster: clusterFromEnv(),
     clusterUrl: clusterUrlFromEnv(),
     deployment: process.env.CONTINUUM_DEPLOYMENT,
+    gatewayUrl: gatewayUrlFromEnv(),
+    gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
+    apiKey: apiKeyFromEnv(),
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: groupPkFromEnv(),
     mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),

@@ -1,4 +1,10 @@
 import { PublicKey } from '@solana/web3.js';
+import {
+  API_KEY_HEADER,
+  RateLimitedError,
+  readRateLimitHeaders,
+  requireApiKey,
+} from './auth';
 
 export type QueueView = 'optimistic' | 'confirmed';
 
@@ -301,17 +307,26 @@ function withQuery(path: string, query: Record<string, string | undefined>): str
   return `${path}?${params.toString()}`;
 }
 
-export class ContinuumHarnessClient {
-  constructor(
-    readonly baseUrl: string,
-    readonly opts?: {
-      relayIngestBearerToken?: string;
-      fetchImpl?: typeof fetch;
-    },
-  ) {}
+export type ContinuumHarnessClientOptions = {
+  /** Continuum proxy gateway REST base URL, e.g. `https://gateway.fermi.xyz`. */
+  gatewayUrl: string;
+  /** UUID API key — sent on every request as `x-api-key`. Required. */
+  apiKey: string;
+  fetchImpl?: typeof fetch;
+};
 
-  private get fetchImpl(): typeof fetch {
-    return this.opts?.fetchImpl ?? fetch;
+export class ContinuumHarnessClient {
+  readonly baseUrl: string;
+  private readonly apiKey: string;
+  private readonly _fetch: typeof fetch;
+
+  constructor(opts: ContinuumHarnessClientOptions) {
+    if (!opts || !opts.gatewayUrl) {
+      throw new Error('ContinuumHarnessClient: gatewayUrl is required');
+    }
+    this.apiKey = requireApiKey(opts.apiKey, 'ContinuumHarnessClient');
+    this.baseUrl = normalizeBaseUrl(opts.gatewayUrl);
+    this._fetch = opts.fetchImpl ?? fetch;
   }
 
   private async request<T>(
@@ -320,15 +335,23 @@ export class ContinuumHarnessClient {
     body?: unknown,
     headers?: Record<string, string>,
   ): Promise<T> {
-    const response = await this.fetchImpl(`${normalizeBaseUrl(this.baseUrl)}${path}`, {
+    const response = await this._fetch(`${this.baseUrl}${path}`, {
       method,
       headers: {
+        [API_KEY_HEADER]: this.apiKey,
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(headers || {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const text = await response.text();
+    if (response.status === 429) {
+      const info = readRateLimitHeaders(response.headers);
+      throw new RateLimitedError(
+        `gateway rate limit hit on ${method} ${path}`,
+        { ...info, body: text },
+      );
+    }
     if (!response.ok) {
       const err: HarnessApiError = {
         status: response.status,
@@ -522,19 +545,26 @@ export class ContinuumHarnessClient {
     );
   }
 
+  /**
+   * Submit a relay intent through the proxy. The gateway exposes this as
+   * `POST /relay/submit-intent`; auth is the x-api-key header already set by
+   * `request()` (plus the proxy's own wallet-auth gate where applicable).
+   */
+  async submitRelayIntent(
+    intent: RelayIntentAcceptedRequest,
+  ): Promise<{ ok: boolean; key: string }> {
+    return await this.request<{ ok: boolean; key: string }>(
+      'POST',
+      '/relay/submit-intent',
+      intent,
+    );
+  }
+
+  /** @deprecated renamed to {@link submitRelayIntent}. */
   async ingestRelayIntent(
     intent: RelayIntentAcceptedRequest,
   ): Promise<{ ok: boolean; key: string }> {
-    const headers: Record<string, string> = {};
-    if (this.opts?.relayIngestBearerToken) {
-      headers.Authorization = `Bearer ${this.opts.relayIngestBearerToken}`;
-    }
-    return await this.request<{ ok: boolean; key: string }>(
-      'POST',
-      '/ingest/relay-intent',
-      intent,
-      headers,
-    );
+    return this.submitRelayIntent(intent);
   }
 
   async airdropUsdc(
@@ -553,6 +583,10 @@ export class ContinuumHarnessClient {
     );
   }
 
+  /**
+   * @deprecated Internal admin path; the proxy gateway does not expose
+   * `/admin/replay`. Only usable against a direct-harness deployment.
+   */
   async adminReplay(): Promise<Record<string, unknown>> {
     return await this.request<Record<string, unknown>>('POST', '/admin/replay', {});
   }

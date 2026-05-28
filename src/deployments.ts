@@ -32,9 +32,10 @@ export type ContinuumDeployment = {
   usdcOracle: string;
   usdcTokenProgram: string;
   markets: ContinuumMarketDeployment[];
-  harnessUrl?: string;
-  relayerAddr?: string;
-  feeHttpUrl?: string;
+  /** Continuum proxy gateway REST base URL (handles harness + fees + relay REST). */
+  gatewayUrl?: string;
+  /** Continuum proxy gRPC address `host:port` (handles relayer SubmitIntent). */
+  gatewayGrpcAddr?: string;
   directPoolsInitialized: boolean;
 };
 
@@ -54,9 +55,8 @@ export const FERMI_R6_MAINNET: ContinuumDeployment = {
   usdcVault: 'F7cXPkwe5zRocBMdgAWtxomQJyQKzk1PJSM5fWWE8C9j',
   usdcOracle: 'Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX',
   usdcTokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-  harnessUrl: 'http://127.0.0.1:9191',
-  relayerAddr: '127.0.0.1:9190',
-  feeHttpUrl: 'http://127.0.0.1:9193',
+  gatewayUrl: 'http://127.0.0.1:4000',
+  gatewayGrpcAddr: '127.0.0.1:50052',
   directPoolsInitialized: false,
   markets: [
     {
@@ -168,8 +168,7 @@ export function deploymentEnv(
     PROGRAM_ID: deployment.programId,
     GROUP_PK: deployment.group,
     USDC_MINT: deployment.usdcMint,
-    HARNESS_URL: deployment.harnessUrl ?? '',
-    RELAYER_ADDR: deployment.relayerAddr ?? '',
-    FEE_HTTP_URL: deployment.feeHttpUrl ?? '',
+    FERMI_API_URL: deployment.gatewayUrl ?? '',
+    FERMI_API_GRPC_ADDR: deployment.gatewayGrpcAddr ?? '',
   };
 }

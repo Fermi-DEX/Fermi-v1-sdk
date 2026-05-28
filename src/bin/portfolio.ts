@@ -2,7 +2,7 @@
 
 import 'dotenv/config';
 import { ContinuumHarnessClient, QueueView } from '../harness';
-import { harnessUrlFromEnv, requiredEnv } from './env';
+import { apiKeyFromEnv, gatewayUrlFromEnv, requiredEnv } from './env';
 
 function fmtUsd(n: unknown): string {
   const v = Number(n);
@@ -25,11 +25,13 @@ function pickN(o: any, ...keys: string[]): number | undefined {
 }
 
 async function main(): Promise<void> {
-  const harnessUrl = requiredEnv('HARNESS_URL', harnessUrlFromEnv());
   const owner = requiredEnv('OWNER');
   const view = ((process.env.VIEW || 'optimistic') as QueueView);
 
-  const harness = new ContinuumHarnessClient(harnessUrl);
+  const harness = new ContinuumHarnessClient({
+    gatewayUrl: gatewayUrlFromEnv(),
+    apiKey: apiKeyFromEnv(),
+  });
   const [user, balances] = await Promise.all([
     harness.getUserState(owner, view),
     harness.getBalances(owner, view).catch(() => null),
