@@ -509,26 +509,47 @@ export class ContinuumHarnessClient {
     return response.data;
   }
 
+  /**
+   * Binance-klines OHLC from the proxy's `/ohlc/:market` (TimescaleDB-backed).
+   * Each entry: `[open_time_ms, open, high, low, close, volume, close_time_ms,
+   * quote_volume, trade_count]`. Supported timeframes: 1m, 5m, 15m, 1h, 4h, 1d.
+   */
   async getCandles(params: {
     market: string | number;
-    view?: QueueView;
-    resolutionSec?: number;
+    /** Bar size. Default 1m. */
+    timeframe?: '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+    /** Unix seconds (inclusive). Default: now − 24h. */
+    fromSec?: number;
+    /** Unix seconds (inclusive). Default: now. */
+    toSec?: number;
+    /** Max bars (≤1500). Default 500. */
     limit?: number;
+    /**
+     * @deprecated The proxy accepts only the discrete timeframes above; pass
+     * `timeframe`. Kept so existing callers keep compiling — bucket size is
+     * mapped to the nearest supported timeframe.
+     */
+    resolutionSec?: number;
+    /** @deprecated `/ohlc` is DB-backed; the optimistic/confirmed view does not apply. */
+    view?: QueueView;
   }): Promise<MarketCandle[]> {
-    const response = await this.request<{
-      view: QueueView;
-      market: string;
-      data: MarketCandle[];
-    }>(
+    const resolutionToTf: Record<number, '1m' | '5m' | '15m' | '1h' | '4h' | '1d'> = {
+      60: '1m', 300: '5m', 900: '15m', 3600: '1h', 14400: '4h', 86400: '1d',
+    };
+    const tf =
+      params.timeframe ??
+      (params.resolutionSec !== undefined ? resolutionToTf[params.resolutionSec] : undefined) ??
+      '1m';
+    const response = await this.request<MarketCandle[]>(
       'GET',
-      withQuery(`/state/candles/${encodeURIComponent(String(params.market))}`, {
-        view: params.view ?? 'optimistic',
-        resolution_sec:
-          params.resolutionSec !== undefined ? String(Math.max(1, Math.floor(params.resolutionSec))) : undefined,
+      withQuery(`/ohlc/${encodeURIComponent(String(params.market))}`, {
+        tf,
+        from: params.fromSec !== undefined ? String(Math.floor(params.fromSec)) : undefined,
+        to: params.toSec !== undefined ? String(Math.floor(params.toSec)) : undefined,
         limit: params.limit !== undefined ? String(Math.max(0, Math.floor(params.limit))) : undefined,
       }),
     );
-    return response.data;
+    return response;
   }
 
   async getFullState(view: QueueView = 'optimistic'): Promise<EngineSnapshot> {
