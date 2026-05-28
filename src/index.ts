@@ -5,6 +5,7 @@ export * from './harness';
 export * from './intents';
 export * from './quoter';
 export * from './relayerClient';
+export * from './streams';
 export * from './trading';
 export {
   PerpOrderSide,
