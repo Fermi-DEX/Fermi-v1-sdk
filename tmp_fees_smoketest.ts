@@ -6,7 +6,14 @@ import {
 } from './src/fees';
 
 async function main() {
-  const client = new ContinuumFeeClient('http://127.0.0.1:9093');
+  const client = new ContinuumFeeClient({
+    gatewayUrl: process.env.FERMI_API_URL ?? 'http://127.0.0.1:4000',
+    apiKey:
+      process.env.FERMI_API_KEY ??
+      (() => {
+        throw new Error('FERMI_API_KEY is required (UUID)');
+      })(),
+  });
   const userOwner = new PublicKey(
     '3ZdHYqiUMC6dwYxCJfKVZp9ZJq7gNg4JUjefcomc43oi',
   );

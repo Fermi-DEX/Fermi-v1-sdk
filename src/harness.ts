@@ -1,4 +1,10 @@
 import { PublicKey } from '@solana/web3.js';
+import {
+  API_KEY_HEADER,
+  RateLimitedError,
+  readRateLimitHeaders,
+  requireApiKey,
+} from './auth';
 
 export type QueueView = 'optimistic' | 'confirmed';
 
@@ -301,17 +307,26 @@ function withQuery(path: string, query: Record<string, string | undefined>): str
   return `${path}?${params.toString()}`;
 }
 
-export class ContinuumHarnessClient {
-  constructor(
-    readonly baseUrl: string,
-    readonly opts?: {
-      relayIngestBearerToken?: string;
-      fetchImpl?: typeof fetch;
-    },
-  ) {}
+export type ContinuumHarnessClientOptions = {
+  /** Continuum proxy gateway REST base URL, e.g. `https://gateway.fermi.xyz`. */
+  gatewayUrl: string;
+  /** UUID API key — sent on every request as `x-api-key`. Required. */
+  apiKey: string;
+  fetchImpl?: typeof fetch;
+};
 
-  private get fetchImpl(): typeof fetch {
-    return this.opts?.fetchImpl ?? fetch;
+export class ContinuumHarnessClient {
+  readonly baseUrl: string;
+  private readonly apiKey: string;
+  private readonly _fetch: typeof fetch;
+
+  constructor(opts: ContinuumHarnessClientOptions) {
+    if (!opts || !opts.gatewayUrl) {
+      throw new Error('ContinuumHarnessClient: gatewayUrl is required');
+    }
+    this.apiKey = requireApiKey(opts.apiKey, 'ContinuumHarnessClient');
+    this.baseUrl = normalizeBaseUrl(opts.gatewayUrl);
+    this._fetch = opts.fetchImpl ?? fetch;
   }
 
   private async request<T>(
@@ -320,15 +335,23 @@ export class ContinuumHarnessClient {
     body?: unknown,
     headers?: Record<string, string>,
   ): Promise<T> {
-    const response = await this.fetchImpl(`${normalizeBaseUrl(this.baseUrl)}${path}`, {
+    const response = await this._fetch(`${this.baseUrl}${path}`, {
       method,
       headers: {
+        [API_KEY_HEADER]: this.apiKey,
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(headers || {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const text = await response.text();
+    if (response.status === 429) {
+      const info = readRateLimitHeaders(response.headers);
+      throw new RateLimitedError(
+        `gateway rate limit hit on ${method} ${path}`,
+        { ...info, body: text },
+      );
+    }
     if (!response.ok) {
       const err: HarnessApiError = {
         status: response.status,
@@ -486,26 +509,47 @@ export class ContinuumHarnessClient {
     return response.data;
   }
 
+  /**
+   * Binance-klines OHLC from the proxy's `/ohlc/:market` (TimescaleDB-backed).
+   * Each entry: `[open_time_ms, open, high, low, close, volume, close_time_ms,
+   * quote_volume, trade_count]`. Supported timeframes: 1m, 5m, 15m, 1h, 4h, 1d.
+   */
   async getCandles(params: {
     market: string | number;
-    view?: QueueView;
-    resolutionSec?: number;
+    /** Bar size. Default 1m. */
+    timeframe?: '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+    /** Unix seconds (inclusive). Default: now − 24h. */
+    fromSec?: number;
+    /** Unix seconds (inclusive). Default: now. */
+    toSec?: number;
+    /** Max bars (≤1500). Default 500. */
     limit?: number;
+    /**
+     * @deprecated The proxy accepts only the discrete timeframes above; pass
+     * `timeframe`. Kept so existing callers keep compiling — bucket size is
+     * mapped to the nearest supported timeframe.
+     */
+    resolutionSec?: number;
+    /** @deprecated `/ohlc` is DB-backed; the optimistic/confirmed view does not apply. */
+    view?: QueueView;
   }): Promise<MarketCandle[]> {
-    const response = await this.request<{
-      view: QueueView;
-      market: string;
-      data: MarketCandle[];
-    }>(
+    const resolutionToTf: Record<number, '1m' | '5m' | '15m' | '1h' | '4h' | '1d'> = {
+      60: '1m', 300: '5m', 900: '15m', 3600: '1h', 14400: '4h', 86400: '1d',
+    };
+    const tf =
+      params.timeframe ??
+      (params.resolutionSec !== undefined ? resolutionToTf[params.resolutionSec] : undefined) ??
+      '1m';
+    const response = await this.request<MarketCandle[]>(
       'GET',
-      withQuery(`/state/candles/${encodeURIComponent(String(params.market))}`, {
-        view: params.view ?? 'optimistic',
-        resolution_sec:
-          params.resolutionSec !== undefined ? String(Math.max(1, Math.floor(params.resolutionSec))) : undefined,
+      withQuery(`/ohlc/${encodeURIComponent(String(params.market))}`, {
+        tf,
+        from: params.fromSec !== undefined ? String(Math.floor(params.fromSec)) : undefined,
+        to: params.toSec !== undefined ? String(Math.floor(params.toSec)) : undefined,
         limit: params.limit !== undefined ? String(Math.max(0, Math.floor(params.limit))) : undefined,
       }),
     );
-    return response.data;
+    return response;
   }
 
   async getFullState(view: QueueView = 'optimistic'): Promise<EngineSnapshot> {
@@ -522,19 +566,26 @@ export class ContinuumHarnessClient {
     );
   }
 
+  /**
+   * Submit a relay intent through the proxy. The gateway exposes this as
+   * `POST /relay/submit-intent`; auth is the x-api-key header already set by
+   * `request()` (plus the proxy's own wallet-auth gate where applicable).
+   */
+  async submitRelayIntent(
+    intent: RelayIntentAcceptedRequest,
+  ): Promise<{ ok: boolean; key: string }> {
+    return await this.request<{ ok: boolean; key: string }>(
+      'POST',
+      '/relay/submit-intent',
+      intent,
+    );
+  }
+
+  /** @deprecated renamed to {@link submitRelayIntent}. */
   async ingestRelayIntent(
     intent: RelayIntentAcceptedRequest,
   ): Promise<{ ok: boolean; key: string }> {
-    const headers: Record<string, string> = {};
-    if (this.opts?.relayIngestBearerToken) {
-      headers.Authorization = `Bearer ${this.opts.relayIngestBearerToken}`;
-    }
-    return await this.request<{ ok: boolean; key: string }>(
-      'POST',
-      '/ingest/relay-intent',
-      intent,
-      headers,
-    );
+    return this.submitRelayIntent(intent);
   }
 
   async airdropUsdc(
@@ -553,6 +604,10 @@ export class ContinuumHarnessClient {
     );
   }
 
+  /**
+   * @deprecated Internal admin path; the proxy gateway does not expose
+   * `/admin/replay`. Only usable against a direct-harness deployment.
+   */
   async adminReplay(): Promise<Record<string, unknown>> {
     return await this.request<Record<string, unknown>>('POST', '/admin/replay', {});
   }

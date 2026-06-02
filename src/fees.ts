@@ -7,6 +7,12 @@ import {
   TransactionInstruction,
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
+import {
+  API_KEY_HEADER,
+  RateLimitedError,
+  readRateLimitHeaders,
+  requireApiKey,
+} from './auth';
 
 /**
  * SPL Memo v2 program ID. The relayer scans for a memo instruction carrying
@@ -186,24 +192,47 @@ export function buildFeeDepositInstructions(
   return { instructions, memo, transferInstructionIndex: 1 };
 }
 
+export type ContinuumFeeClientOptions = {
+  /** Continuum proxy gateway REST base URL. */
+  gatewayUrl: string;
+  /** UUID API key — sent as `x-api-key`. Required. */
+  apiKey: string;
+  fetchImpl?: typeof fetch;
+};
+
 export class ContinuumFeeClient {
-  constructor(
-    private readonly baseUrl: string,
-    private readonly fetchImpl: typeof fetch = fetch,
-  ) {
-    if (!baseUrl) {
-      throw new Error('ContinuumFeeClient: baseUrl is required');
+  private readonly baseUrl: string;
+  private readonly apiKey: string;
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(opts: ContinuumFeeClientOptions) {
+    if (!opts || !opts.gatewayUrl) {
+      throw new Error('ContinuumFeeClient: gatewayUrl is required');
     }
+    this.apiKey = requireApiKey(opts.apiKey, 'ContinuumFeeClient');
+    this.baseUrl = opts.gatewayUrl.endsWith('/')
+      ? opts.gatewayUrl.slice(0, -1)
+      : opts.gatewayUrl;
+    this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
   private url(path: string): string {
-    const trimmed = this.baseUrl.endsWith('/')
-      ? this.baseUrl.slice(0, -1)
-      : this.baseUrl;
-    return `${trimmed}${path.startsWith('/') ? path : `/${path}`}`;
+    return `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
   }
 
-  /** GET /fees/status — returns wallet fee balance, current quote, and deposit wiring. */
+  private async checkRateLimit(
+    resp: Response,
+    label: string,
+  ): Promise<void> {
+    if (resp.status !== 429) return;
+    const body = await resp.text();
+    throw new RateLimitedError(`gateway rate limit hit on ${label}`, {
+      ...readRateLimitHeaders(resp.headers),
+      body,
+    });
+  }
+
+  /** GET /relayer/fees/status — wallet fee balance, current quote, deposit wiring. */
   async getStatus(query: FeeStatusQuery): Promise<FeeStatus> {
     const params = new URLSearchParams();
     params.set('user_owner', pubkeyStr(query.userOwner));
@@ -214,20 +243,23 @@ export class ContinuumFeeClient {
       params.set('execution_queue', pubkeyStr(query.executionQueue));
     }
     const resp = await this.fetchImpl(
-      `${this.url('/fees/status')}?${params.toString()}`,
+      `${this.url('/relayer/fees/status')}?${params.toString()}`,
+      { headers: { [API_KEY_HEADER]: this.apiKey } },
     );
+    await this.checkRateLimit(resp, 'GET /relayer/fees/status');
     if (!resp.ok) {
       const body = await resp.text();
-      throw new Error(`fees/status failed: HTTP ${resp.status} ${body}`);
+      throw new Error(`relayer/fees/status failed: HTTP ${resp.status} ${body}`);
     }
     return (await resp.json()) as FeeStatus;
   }
 
   /**
-   * POST /fees-deposited — tell the relayer about a completed deposit tx so it
-   * credits the wallet's fee balance. Idempotent on `source_tx_signature`. If
-   * the relayer was started with `CTM_FEE_ADMIN_TOKEN`, callers must supply
-   * `adminToken` for the Authorization header.
+   * POST /relayer/fees-deposited — tell the relayer about a completed deposit
+   * tx so it credits the wallet's fee balance. Idempotent on
+   * `source_tx_signature`. If the relayer was started with
+   * `CTM_FEE_ADMIN_TOKEN`, callers must supply `adminToken` for the
+   * Authorization header (sent alongside the gateway's x-api-key).
    */
   async reportDeposit(
     request: FeeDepositReport,
@@ -235,6 +267,7 @@ export class ContinuumFeeClient {
   ): Promise<FeeDepositReportResponse> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      [API_KEY_HEADER]: this.apiKey,
     };
     if (adminToken) headers['Authorization'] = adminToken;
     const body: Record<string, unknown> = {
@@ -244,14 +277,15 @@ export class ContinuumFeeClient {
           ? String(request.amount_lamports)
           : request.amount_lamports,
     };
-    const resp = await this.fetchImpl(this.url('/fees-deposited'), {
+    const resp = await this.fetchImpl(this.url('/relayer/fees-deposited'), {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
     });
+    await this.checkRateLimit(resp, 'POST /relayer/fees-deposited');
     if (!resp.ok) {
       const text = await resp.text();
-      throw new Error(`fees-deposited failed: HTTP ${resp.status} ${text}`);
+      throw new Error(`relayer/fees-deposited failed: HTTP ${resp.status} ${text}`);
     }
     return (await resp.json()) as FeeDepositReportResponse;
   }

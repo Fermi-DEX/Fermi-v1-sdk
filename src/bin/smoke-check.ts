@@ -11,10 +11,10 @@ import { ContinuumFeeClient } from '../fees';
 import { toPublicKey } from '../context';
 import { ContinuumDeployment } from '../deployments';
 import {
+  apiKeyFromEnv,
   deploymentFromEnv,
-  feeHttpUrlFromEnv,
-  harnessUrlFromEnv,
-  relayerAddrFromEnv,
+  gatewayGrpcAddrFromEnv,
+  gatewayUrlFromEnv,
 } from './env';
 
 type Probe = {
@@ -115,13 +115,22 @@ async function main(): Promise<void> {
     },
   });
 
-  const harnessUrl = harnessUrlFromEnv();
+  // All gateway-backed probes share one API key; load once so a missing key
+  // surfaces as a single failure rather than three.
+  const apiKey = process.env.FERMI_API_KEY ? apiKeyFromEnv() : undefined;
+  const gatewayUrl = process.env.FERMI_API_URL ? gatewayUrlFromEnv() : undefined;
+  const gatewayGrpcAddr = process.env.FERMI_API_GRPC_ADDR
+    ? gatewayGrpcAddrFromEnv()
+    : undefined;
+
   probes.push({
-    name: 'harness',
-    required: harnessUrl !== undefined,
+    name: 'gateway-rest',
+    required: gatewayUrl !== undefined,
     fn: async () => {
-      if (!harnessUrl) throw new Error('HARNESS_URL not set (skip)');
-      const client = new ContinuumHarnessClient(harnessUrl);
+      if (!gatewayUrl || !apiKey) {
+        throw new Error('FERMI_API_URL / FERMI_API_KEY not set (skip)');
+      }
+      const client = new ContinuumHarnessClient({ gatewayUrl, apiKey });
       const h = await client.healthz();
       let configDetail = '';
       if (deployment) {
@@ -133,15 +142,19 @@ async function main(): Promise<void> {
     },
   });
 
-  const relayerAddr = relayerAddrFromEnv();
   probes.push({
-    name: 'relayer',
-    required: relayerAddr !== undefined,
+    name: 'gateway-grpc',
+    required: gatewayGrpcAddr !== undefined,
     fn: async () => {
-      if (!relayerAddr) throw new Error('RELAYER_ADDR not set (skip)');
+      if (!gatewayGrpcAddr || !apiKey) {
+        throw new Error('FERMI_API_GRPC_ADDR / FERMI_API_KEY not set (skip)');
+      }
       // gRPC clients connect lazily; force a real call so we surface
       // dial failures here rather than at first submit.
-      const client = new ContinuumRelayerClient(relayerAddr);
+      const client = new ContinuumRelayerClient({
+        gatewayGrpcAddr,
+        apiKey,
+      });
       try {
         // No public ping today. Submit a deliberately malformed intent and
         // treat any structured server reply (success OR rejection) as proof
@@ -174,27 +187,25 @@ async function main(): Promise<void> {
     },
   });
 
-  const feeUrl = feeHttpUrlFromEnv();
   const userOwner = process.env.USER_OWNER_PK || process.env.OWNER;
   const mangoAccount = process.env.MANGO_ACCOUNT_PK;
   probes.push({
-    name: 'fees-http',
-    required: feeUrl !== undefined,
+    name: 'gateway-fees',
+    required: gatewayUrl !== undefined && !!userOwner && !!mangoAccount,
     fn: async () => {
-      if (!feeUrl) throw new Error('FEE_HTTP_URL not set (skip)');
-      // If we have an account context, do a real /fees/status query.
-      // Otherwise just confirm the endpoint is reachable at all.
-      if (userOwner && mangoAccount) {
-        const fees = new ContinuumFeeClient(feeUrl);
-        const status = await fees.getStatus({
-          userOwner: toPublicKey(userOwner),
-          mangoAccount: toPublicKey(mangoAccount),
-        });
-        const balance = status.fee_account?.available_balance_lamports ?? '?';
-        return `deposit=${status.deposit?.deposit_address || '?'} balance=${balance}`;
+      if (!gatewayUrl || !apiKey) {
+        throw new Error('FERMI_API_URL / FERMI_API_KEY not set (skip)');
       }
-      const resp = await fetch(`${feeUrl.replace(/\/+$/, '')}/healthz`);
-      return `HTTP ${resp.status} (set USER_OWNER_PK + MANGO_ACCOUNT_PK for fee balance)`;
+      if (!userOwner || !mangoAccount) {
+        return 'set USER_OWNER_PK + MANGO_ACCOUNT_PK for a real fee balance probe';
+      }
+      const fees = new ContinuumFeeClient({ gatewayUrl, apiKey });
+      const status = await fees.getStatus({
+        userOwner: toPublicKey(userOwner),
+        mangoAccount: toPublicKey(mangoAccount),
+      });
+      const balance = status.fee_account?.available_balance_lamports ?? '?';
+      return `deposit=${status.deposit?.deposit_address || '?'} balance=${balance}`;
     },
   });
 

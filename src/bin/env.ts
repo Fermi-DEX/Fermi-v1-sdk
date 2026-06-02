@@ -43,19 +43,55 @@ export function usdcMintFromEnv(): string | undefined {
   return optionalEnv('USDC_MINT', deployment?.usdcMint);
 }
 
+const DEPRECATED_URL_ENVS = ['HARNESS_URL', 'RELAYER_ADDR', 'FEE_HTTP_URL'] as const;
+let deprecatedWarned = false;
+function warnDeprecatedEnvsOnce(): void {
+  if (deprecatedWarned) return;
+  const set = DEPRECATED_URL_ENVS.filter((name) => process.env[name]);
+  if (set.length) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[continuum-sdk] ignoring deprecated env(s) ${set.join(', ')}; ` +
+        `the SDK now routes all traffic through the Fermi proxy gateway — set ` +
+        `FERMI_API_URL, FERMI_API_GRPC_ADDR, FERMI_API_KEY`,
+    );
+  }
+  deprecatedWarned = true;
+}
+
+export function gatewayUrlFromEnv(): string {
+  warnDeprecatedEnvsOnce();
+  const deployment = deploymentFromEnv();
+  return requiredEnv('FERMI_API_URL', deployment?.gatewayUrl);
+}
+
+export function gatewayGrpcAddrFromEnv(): string {
+  warnDeprecatedEnvsOnce();
+  const deployment = deploymentFromEnv();
+  return requiredEnv('FERMI_API_GRPC_ADDR', deployment?.gatewayGrpcAddr);
+}
+
+export function apiKeyFromEnv(): string {
+  warnDeprecatedEnvsOnce();
+  return requiredEnv('FERMI_API_KEY');
+}
+
+/** @deprecated use {@link gatewayUrlFromEnv}. */
 export function harnessUrlFromEnv(): string | undefined {
   const deployment = deploymentFromEnv();
-  return optionalEnv('HARNESS_URL', deployment?.harnessUrl);
+  return optionalEnv('FERMI_API_URL', deployment?.gatewayUrl);
 }
 
+/** @deprecated use {@link gatewayGrpcAddrFromEnv}. */
 export function relayerAddrFromEnv(): string | undefined {
   const deployment = deploymentFromEnv();
-  return optionalEnv('RELAYER_ADDR', deployment?.relayerAddr);
+  return optionalEnv('FERMI_API_GRPC_ADDR', deployment?.gatewayGrpcAddr);
 }
 
+/** @deprecated use {@link gatewayUrlFromEnv}. */
 export function feeHttpUrlFromEnv(): string | undefined {
   const deployment = deploymentFromEnv();
-  return optionalEnv('FEE_HTTP_URL', deployment?.feeHttpUrl);
+  return optionalEnv('FERMI_API_URL', deployment?.gatewayUrl);
 }
 
 export function boolEnv(name: string, defaultValue: boolean): boolean {

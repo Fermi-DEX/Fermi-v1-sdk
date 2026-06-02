@@ -9,10 +9,12 @@ import {
 import { createMangoContext } from '../../context';
 import { submitPerpOrderDirect } from '../../trading';
 import {
+  apiKeyFromEnv,
   clusterFromEnv,
   clusterUrlFromEnv,
+  gatewayGrpcAddrFromEnv,
+  gatewayUrlFromEnv,
   groupPkFromEnv,
-  harnessUrlFromEnv,
   requiredEnv,
 } from '../env';
 
@@ -120,7 +122,9 @@ async function main(): Promise<void> {
     cluster,
     clusterUrl: clusterUrlFromEnv(),
     deployment: process.env.CONTINUUM_DEPLOYMENT,
-    harnessBaseUrl: harnessUrlFromEnv(),
+    gatewayUrl: gatewayUrlFromEnv(),
+    gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
+    apiKey: apiKeyFromEnv(),
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: groupPkFromEnv(),
     mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),

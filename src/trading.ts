@@ -136,24 +136,15 @@ function uiPriceToLotsForSide(
   return BigInt(perpMarket.uiPriceToLots(price).toString());
 }
 
-async function maybeRegisterDirectLane(context: MangoContext): Promise<void> {
-  if (!context.harnessBaseUrl) {
-    return;
-  }
-  const response = await fetch(
-    `${context.harnessBaseUrl.replace(/\/+$/, '')}/admin/register-lane`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ owner: context.user.publicKey.toBase58() }),
-    },
-  );
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(
-      `lane registration failed (${response.status}): ${body || response.statusText}`,
-    );
-  }
+/**
+ * Lane registration (`/admin/register-lane`) is an internal harness admin
+ * endpoint and is intentionally not exposed by the proxy gateway. Operators
+ * that need it should call it out-of-band against their harness; the public
+ * SDK does not perform it. Direct-submit flows go straight on-chain, so this
+ * is now a no-op kept for call-site stability.
+ */
+async function maybeRegisterDirectLane(_context: MangoContext): Promise<void> {
+  return;
 }
 
 async function buildPerpIntentAuth(params: {

@@ -7,11 +7,12 @@ import { ContinuumHarnessClient } from '../harness';
 import { ContinuumRelayerClient } from '../relayerClient';
 import { CoinGeckoFairPriceProvider, RelayerPerpQuoterBot } from '../quoter';
 import {
+  apiKeyFromEnv,
   clusterFromEnv,
   clusterUrlFromEnv,
+  gatewayGrpcAddrFromEnv,
+  gatewayUrlFromEnv,
   groupPkFromEnv,
-  harnessUrlFromEnv,
-  relayerAddrFromEnv,
   requiredEnv,
 } from './env';
 
@@ -30,21 +31,26 @@ function parseSide(value: string): PerpOrderSide {
 
 async function main(): Promise<void> {
   const cluster = clusterFromEnv();
+  const apiKey = apiKeyFromEnv();
+  const gatewayUrl = gatewayUrlFromEnv();
   const context = await createMangoContext({
     cluster,
     clusterUrl: clusterUrlFromEnv(),
     deployment: process.env.CONTINUUM_DEPLOYMENT,
+    gatewayUrl,
+    gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
+    apiKey,
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: groupPkFromEnv(),
     mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),
     executionQueuePk: process.env.EXECUTION_QUEUE_PK,
     programId: process.env.PROGRAM_ID,
   });
-  const relayer = new ContinuumRelayerClient(
-    requiredEnv('RELAYER_ADDR', relayerAddrFromEnv()),
-  );
-  const harnessUrl = harnessUrlFromEnv();
-  const harness = harnessUrl ? new ContinuumHarnessClient(harnessUrl) : null;
+  const relayer = new ContinuumRelayerClient({
+    gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
+    apiKey,
+  });
+  const harness = new ContinuumHarnessClient({ gatewayUrl, apiKey });
   const fairPriceProvider = new CoinGeckoFairPriceProvider(
     process.env.COINGECKO_ASSET_ID || 'solana',
     process.env.COINGECKO_VS_CURRENCY || 'usd',

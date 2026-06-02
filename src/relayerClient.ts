@@ -2,6 +2,11 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { AccountMeta, PublicKey } from '@solana/web3.js';
 import path from 'path';
+import {
+  API_KEY_HEADER,
+  RateLimitedError,
+  requireApiKey,
+} from './auth';
 
 export type RelayerAccountMeta = {
   pubkey: string;
@@ -81,20 +86,45 @@ export function toRelayerAccountMeta(account: AccountMeta): RelayerAccountMeta {
   };
 }
 
+export type ContinuumRelayerClientOptions = {
+  /** Continuum proxy gRPC address, e.g. `gateway.fermi.xyz:50052`. */
+  gatewayGrpcAddr: string;
+  /** UUID API key — attached as `x-api-key` metadata on every RPC. Required. */
+  apiKey: string;
+  protoPath?: string;
+  /**
+   * Channel credentials. Defaults to TLS; pass
+   * `grpc.credentials.createInsecure()` for local dev against an unencrypted
+   * proxy. API key metadata is attached on top via call credentials.
+   */
+  credentials?: grpc.ChannelCredentials;
+};
+
+function apiKeyCallCredentials(apiKey: string): grpc.CallCredentials {
+  return grpc.credentials.createFromMetadataGenerator((_params, callback) => {
+    const metadata = new grpc.Metadata();
+    metadata.set(API_KEY_HEADER, apiKey);
+    callback(null, metadata);
+  });
+}
+
 export class ContinuumRelayerClient {
   private readonly client: RelayerGrpcClient;
 
-  constructor(
-    addr: string,
-    opts?: {
-      protoPath?: string;
-      credentials?: grpc.ChannelCredentials;
-    },
-  ) {
-    const proto = loadRelayerProto(opts?.protoPath ?? defaultRelayerProtoPath());
+  constructor(opts: ContinuumRelayerClientOptions) {
+    if (!opts || !opts.gatewayGrpcAddr) {
+      throw new Error('ContinuumRelayerClient: gatewayGrpcAddr is required');
+    }
+    const apiKey = requireApiKey(opts.apiKey, 'ContinuumRelayerClient');
+    const proto = loadRelayerProto(opts.protoPath ?? defaultRelayerProtoPath());
+    const channelCreds = opts.credentials ?? grpc.credentials.createSsl();
+    const composed = grpc.credentials.combineChannelCredentials(
+      channelCreds,
+      apiKeyCallCredentials(apiKey),
+    );
     this.client = new proto.ctmsequencer.CtmSequencerRelayer(
-      addr,
-      opts?.credentials ?? grpc.credentials.createInsecure(),
+      opts.gatewayGrpcAddr,
+      composed,
     );
   }
 
@@ -102,6 +132,16 @@ export class ContinuumRelayerClient {
     return await new Promise<SubmitIntentResponse>((resolve, reject) => {
       this.client.submitIntent(request, (err, response) => {
         if (err) {
+          // grpc-js exposes status code on Error.code; 8 = RESOURCE_EXHAUSTED
+          const code = (err as Error & { code?: number }).code;
+          if (code === grpc.status.RESOURCE_EXHAUSTED) {
+            reject(
+              new RateLimitedError(
+                `gateway rate limit hit on SubmitIntent: ${err.message}`,
+              ),
+            );
+            return;
+          }
           reject(err);
           return;
         }
