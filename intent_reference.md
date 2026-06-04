@@ -15,7 +15,7 @@ The gRPC request is `CtmSequencerRelayer.SubmitIntent`.
 
 Required fields:
 
-- `group`: Mango group pubkey
+- `group`: Fermi v1 group pubkey
 - `execution_queue`: v5 queue PDA for the target market
 - `market`: decimal market index
 - `payload`: raw execution-queue payload bytes
@@ -23,7 +23,7 @@ Required fields:
 - `min_execute_slot`: usually `0`
 - `expires_at_slot`: usually `0`
 - `user_owner`: owner/delegate pubkey
-- `mango_account`: Mango account pubkey
+- `fermi_account`: Fermi v1 account pubkey
 - `user_signature`: ed25519 signature over the current v5 digest
 - `intent_version`: `2`
 - `target_kind`: `0` for perp market
@@ -60,13 +60,13 @@ expiries can mature while the intent is waiting behind earlier queue work.
 
 ## Relayed User Signature
 
-Relayed v5 intents sign `mango-v5-user-intent-v2`.
+Relayed v5 intents sign `fermi-v1-user-intent-v2`.
 
 ```text
 sha256(
-  utf8("mango-v5-user-intent-v2")
+  utf8("fermi-v1-user-intent-v2")
   || group_pubkey_32
-  || mango_account_pubkey_32
+  || fermi_account_pubkey_32
   || user_owner_pubkey_32
   || kind_u8                  // 0 = CtmWrapped
   || target_kind_u8           // 0 = PerpMarket
@@ -89,7 +89,7 @@ the v5 on-chain rolling replay cache. The SDK behavior is:
 - cancel all: use a fresh random replay nonce unless
   `params.intentClientOrderId` is set
 
-The legacy `mango-v4-user-intent-v2` builder remains exported only for older
+The legacy `fermi-v1-legacy-user-intent-v2` builder remains exported only for older
 deployments; current v5 helpers do not use it.
 
 ## Account Hash Rule
@@ -106,7 +106,7 @@ For perp execution-queue intents, `remaining_accounts` must be ordered as:
 
 ```text
 group
-mango_account
+fermi_account
 user_owner
 target_perp_market
 target_bids
@@ -142,13 +142,13 @@ non-signer, matching on-chain verification.
 
 ## Direct Fallback Signature
 
-Direct fallback signs `mango-v5-direct-intent-v1`:
+Direct fallback signs `fermi-v1-direct-intent-v1`:
 
 ```text
 sha256(
-  utf8("mango-v5-direct-intent-v1")
+  utf8("fermi-v1-direct-intent-v1")
   || group_pubkey_32
-  || mango_account_pubkey_32
+  || fermi_account_pubkey_32
   || user_owner_pubkey_32
   || kind_u8
   || target_kind_u8
@@ -167,23 +167,23 @@ order payload `clientOrderId`.
 
 ```ts
 import {
-  ContinuumRelayerClient,
+  FermiV1RelayerClient,
   PerpOrderSide,
   PerpOrderType,
-  createMangoContext,
+  createFermiV1Context,
   submitPerpOrderViaRelayer,
-} from '@fermilabs/continuum-sdk';
+} from '@fermilabs/fermi-v1-sdk';
 
-const context = await createMangoContext({
+const context = await createFermiV1Context({
   cluster: 'devnet',
   clusterUrl: process.env.CLUSTER_URL!,
   userKeypair: process.env.USER_KEYPAIR!,
   groupPk: process.env.GROUP_PK!,
-  mangoAccountPk: process.env.MANGO_ACCOUNT_PK!,
+  fermiAccountPk: process.env.FERMI_ACCOUNT_PK!,
   programId: process.env.PROGRAM_ID,
 });
 
-const relayer = new ContinuumRelayerClient(process.env.RELAYER_ADDR!);
+const relayer = new FermiV1RelayerClient(process.env.RELAYER_ADDR!);
 
 await submitPerpOrderViaRelayer(relayer, context, {
   marketIndex: 0,

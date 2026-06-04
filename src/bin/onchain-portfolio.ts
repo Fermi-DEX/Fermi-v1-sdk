@@ -2,7 +2,7 @@
 
 import 'dotenv/config';
 import { PublicKey } from '@solana/web3.js';
-import { createMangoContext } from '../context';
+import { createFermiV1Context } from '../context';
 import {
   apiKeyFromEnv,
   clusterFromEnv,
@@ -46,24 +46,24 @@ function jsonReplacer(_key: string, value: unknown): unknown {
 }
 
 async function main(): Promise<void> {
-  const context = await createMangoContext({
+  const context = await createFermiV1Context({
     cluster: clusterFromEnv(),
     clusterUrl: clusterUrlFromEnv(),
-    deployment: process.env.CONTINUUM_DEPLOYMENT,
+    deployment: process.env.FERMI_DEPLOYMENT,
     gatewayUrl: gatewayUrlFromEnv(),
     gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
     apiKey: apiKeyFromEnv(),
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: groupPkFromEnv(),
-    mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),
+    fermiAccountPk: requiredEnv('FERMI_ACCOUNT_PK'),
     programId: process.env.PROGRAM_ID,
   });
   const account = await context.client.getMangoAccount(
-    context.mangoAccount.publicKey,
+    context.fermiAccount.publicKey,
   );
 
   console.log(`on-chain portfolio for ${context.user.publicKey.toBase58()}`);
-  console.log(`mango_account: ${account.publicKey.toBase58()}`);
+  console.log(`fermi_account: ${account.publicKey.toBase58()}`);
   console.log(`group: ${context.group.publicKey.toBase58()}`);
 
   const getHealthRatioUi = method<number>(account, 'getHealthRatioUi');

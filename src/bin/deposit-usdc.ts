@@ -7,7 +7,7 @@ import {
   getAssociatedTokenAddress,
   Group,
   MangoAccount,
-  MangoClient,
+  MangoClient as FermiV1AccountClient,
 } from '@blockworks-foundation/mango-v4';
 import {
   loadKeypair,
@@ -34,13 +34,13 @@ function parseAmountUi(name: string): number {
 }
 
 function parseAccountNum(): number {
-  const value = process.env.MANGO_ACCOUNT_NUM;
+  const value = process.env.FERMI_ACCOUNT_NUM;
   if (value === undefined || value === '') {
     return 0;
   }
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error('env var MANGO_ACCOUNT_NUM must be a non-negative integer');
+    throw new Error('env var FERMI_ACCOUNT_NUM must be a non-negative integer');
   }
   return parsed;
 }
@@ -48,7 +48,7 @@ function parseAccountNum(): number {
 async function createClientAndGroup(): Promise<{
   user: Keypair;
   connection: Connection;
-  client: MangoClient;
+  client: FermiV1AccountClient;
   group: Group;
   programId: PublicKey;
   deployment?: string;
@@ -69,7 +69,7 @@ async function createClientAndGroup(): Promise<{
     programId: process.env.PROGRAM_ID,
     deployment: deployment?.name,
   });
-  const client = await MangoClient.connect(provider, cluster, programId, {
+  const client = await FermiV1AccountClient.connect(provider, cluster, programId, {
     idsSource: 'get-program-accounts',
   });
   const group = await client.getGroup(groupPk);
@@ -77,15 +77,15 @@ async function createClientAndGroup(): Promise<{
 }
 
 async function resolveMangoAccount(params: {
-  client: MangoClient;
+  client: FermiV1AccountClient;
   group: Group;
   owner: PublicKey;
-  mangoAccountPk?: string;
+  fermiAccountPk?: string;
   accountNumber: number;
 }): Promise<MangoAccount> {
-  if (params.mangoAccountPk) {
+  if (params.fermiAccountPk) {
     return await params.client.getMangoAccount(
-      toPublicKey(params.mangoAccountPk),
+      toPublicKey(params.fermiAccountPk),
     );
   }
   const found = await params.client.getMangoAccountForOwner(
@@ -95,9 +95,9 @@ async function resolveMangoAccount(params: {
   );
   if (!found) {
     throw new Error(
-      `no mango account found for owner=${params.owner.toBase58()} account_num=${
+      `no Fermi v1 account found for owner=${params.owner.toBase58()} account_num=${
         params.accountNumber
-      }; set MANGO_ACCOUNT_PK or create the account first`,
+      }; set FERMI_ACCOUNT_PK or create the account first`,
     );
   }
   return found;
@@ -107,11 +107,11 @@ async function main(): Promise<void> {
   const amountUi = parseAmountUi('USDC_AMOUNT_UI');
   const { user, connection, client, group, programId, deployment } =
     await createClientAndGroup();
-  const mangoAccount = await resolveMangoAccount({
+  const fermiAccount = await resolveMangoAccount({
     client,
     group,
     owner: user.publicKey,
-    mangoAccountPk: process.env.MANGO_ACCOUNT_PK,
+    fermiAccountPk: process.env.FERMI_ACCOUNT_PK,
     accountNumber: parseAccountNum(),
   });
 
@@ -136,7 +136,7 @@ async function main(): Promise<void> {
 
   const status = await client.tokenDeposit(
     group,
-    mangoAccount,
+    fermiAccount,
     mintPk,
     amountUi,
     false,
@@ -151,7 +151,7 @@ async function main(): Promise<void> {
         program_id: programId.toBase58(),
         group: group.publicKey.toBase58(),
         owner: user.publicKey.toBase58(),
-        mango_account: mangoAccount.publicKey.toBase58(),
+        mango_account: fermiAccount.publicKey.toBase58(),
         mint: mintPk.toBase58(),
         amount_ui: amountUi,
         owner_token_account: ownerTokenAccount.toBase58(),

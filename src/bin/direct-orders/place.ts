@@ -6,7 +6,7 @@ import {
   PerpOrderType,
   PerpSelfTradeBehavior,
 } from '@blockworks-foundation/mango-v4';
-import { createMangoContext } from '../../context';
+import { createFermiV1Context } from '../../context';
 import { submitPerpOrderDirect } from '../../trading';
 import {
   apiKeyFromEnv,
@@ -118,16 +118,16 @@ async function main(): Promise<void> {
     throw new Error('DIRECT_ORDER_MARKET_INDEX must be a non-negative integer');
   }
 
-  const context = await createMangoContext({
+  const context = await createFermiV1Context({
     cluster,
     clusterUrl: clusterUrlFromEnv(),
-    deployment: process.env.CONTINUUM_DEPLOYMENT,
+    deployment: process.env.FERMI_DEPLOYMENT,
     gatewayUrl: gatewayUrlFromEnv(),
     gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
     apiKey: apiKeyFromEnv(),
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: groupPkFromEnv(),
-    mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),
+    fermiAccountPk: requiredEnv('FERMI_ACCOUNT_PK'),
     executionQueuePk: process.env.EXECUTION_QUEUE_PK,
     programId: process.env.PROGRAM_ID,
   });
@@ -165,7 +165,7 @@ async function main(): Promise<void> {
         cluster,
         market_index: marketIndex,
         owner: context.user.publicKey.toBase58(),
-        mango_account: context.mangoAccount.publicKey.toBase58(),
+        mango_account: context.fermiAccount.publicKey.toBase58(),
         client_order_id: clientOrderId.toString(),
         tx_signature: result.txSignature,
         direct_intent_message_b64:

@@ -86,8 +86,8 @@ export function toRelayerAccountMeta(account: AccountMeta): RelayerAccountMeta {
   };
 }
 
-export type ContinuumRelayerClientOptions = {
-  /** Continuum proxy gRPC address, e.g. `gateway.fermi.xyz:50052`. */
+export type FermiV1RelayerClientOptions = {
+  /** Fermi v1 gateway gRPC address, e.g. `v1.fermi.trade:443`. */
   gatewayGrpcAddr: string;
   /** UUID API key — attached as `x-api-key` metadata on every RPC. Required. */
   apiKey: string;
@@ -108,14 +108,14 @@ function apiKeyCallCredentials(apiKey: string): grpc.CallCredentials {
   });
 }
 
-export class ContinuumRelayerClient {
+export class FermiV1RelayerClient {
   private readonly client: RelayerGrpcClient;
 
-  constructor(opts: ContinuumRelayerClientOptions) {
+  constructor(opts: FermiV1RelayerClientOptions) {
     if (!opts || !opts.gatewayGrpcAddr) {
-      throw new Error('ContinuumRelayerClient: gatewayGrpcAddr is required');
+      throw new Error('FermiV1RelayerClient: gatewayGrpcAddr is required');
     }
-    const apiKey = requireApiKey(opts.apiKey, 'ContinuumRelayerClient');
+    const apiKey = requireApiKey(opts.apiKey, 'FermiV1RelayerClient');
     const proto = loadRelayerProto(opts.protoPath ?? defaultRelayerProtoPath());
     const channelCreds = opts.credentials ?? grpc.credentials.createSsl();
     const composed = grpc.credentials.combineChannelCredentials(

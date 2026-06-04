@@ -1,4 +1,4 @@
-export type ContinuumMarketDeployment = {
+export type FermiV1MarketDeployment = {
   symbol: 'SOL' | 'ETH' | 'BTC' | string;
   marketIndex: number;
   perpMarket: string;
@@ -15,7 +15,7 @@ export type ContinuumMarketDeployment = {
   minBaseSize: number;
 };
 
-export type ContinuumDeployment = {
+export type FermiV1Deployment = {
   name: string;
   cluster: 'mainnet-beta' | 'devnet' | 'testnet' | 'localnet';
   rpcUrl: string;
@@ -31,15 +31,15 @@ export type ContinuumDeployment = {
   usdcVault: string;
   usdcOracle: string;
   usdcTokenProgram: string;
-  markets: ContinuumMarketDeployment[];
-  /** Continuum proxy gateway REST base URL (handles harness + fees + relay REST). */
+  markets: FermiV1MarketDeployment[];
+  /** Fermi v1 gateway REST base URL (handles state, fees, and relay REST). */
   gatewayUrl?: string;
-  /** Continuum proxy gRPC address `host:port` (handles relayer SubmitIntent). */
+  /** Fermi v1 gateway gRPC address `host:port` (handles relayer SubmitIntent). */
   gatewayGrpcAddr?: string;
   directPoolsInitialized: boolean;
 };
 
-export const FERMI_R6_MAINNET: ContinuumDeployment = {
+export const FERMI_R6_MAINNET: FermiV1Deployment = {
   name: 'fermi-r6-mainnet',
   cluster: 'mainnet-beta',
   rpcUrl: 'https://api.mainnet-beta.solana.com',
@@ -55,8 +55,8 @@ export const FERMI_R6_MAINNET: ContinuumDeployment = {
   usdcVault: 'F7cXPkwe5zRocBMdgAWtxomQJyQKzk1PJSM5fWWE8C9j',
   usdcOracle: 'Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX',
   usdcTokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-  gatewayUrl: 'http://127.0.0.1:4000',
-  gatewayGrpcAddr: '127.0.0.1:50052',
+  gatewayUrl: 'https://v1.fermi.trade/prod',
+  gatewayGrpcAddr: 'v1.fermi.trade:443',
   directPoolsInitialized: false,
   markets: [
     {
@@ -110,43 +110,43 @@ export const FERMI_R6_MAINNET: ContinuumDeployment = {
   ],
 };
 
-export const CONTINUUM_DEPLOYMENTS: Record<string, ContinuumDeployment> = {
+export const FERMI_V1_DEPLOYMENTS: Record<string, FermiV1Deployment> = {
   [FERMI_R6_MAINNET.name]: FERMI_R6_MAINNET,
 };
 
-export function getContinuumDeployment(
+export function getFermiV1Deployment(
   name: string | undefined,
-): ContinuumDeployment | undefined {
+): FermiV1Deployment | undefined {
   if (!name) {
     return undefined;
   }
-  return CONTINUUM_DEPLOYMENTS[name];
+  return FERMI_V1_DEPLOYMENTS[name];
 }
 
-export function requireContinuumDeployment(name: string): ContinuumDeployment {
-  const deployment = getContinuumDeployment(name);
+export function requireFermiV1Deployment(name: string): FermiV1Deployment {
+  const deployment = getFermiV1Deployment(name);
   if (!deployment) {
     throw new Error(
-      `unknown Continuum deployment ${name}; known deployments: ${Object.keys(
-        CONTINUUM_DEPLOYMENTS,
+      `unknown Fermi v1 deployment ${name}; known deployments: ${Object.keys(
+        FERMI_V1_DEPLOYMENTS,
       ).join(', ')}`,
     );
   }
   return deployment;
 }
 
-export function findContinuumDeploymentByGroup(
+export function findFermiV1DeploymentByGroup(
   groupPk: string,
-): ContinuumDeployment | undefined {
-  return Object.values(CONTINUUM_DEPLOYMENTS).find(
+): FermiV1Deployment | undefined {
+  return Object.values(FERMI_V1_DEPLOYMENTS).find(
     (deployment) => deployment.group === groupPk,
   );
 }
 
-export function findContinuumMarket(
-  deployment: ContinuumDeployment,
+export function findFermiV1Market(
+  deployment: FermiV1Deployment,
   market: string | number,
-): ContinuumMarketDeployment | undefined {
+): FermiV1MarketDeployment | undefined {
   if (typeof market === 'number') {
     return deployment.markets.find((candidate) => candidate.marketIndex === market);
   }
@@ -159,10 +159,10 @@ export function findContinuumMarket(
 }
 
 export function deploymentEnv(
-  deployment: ContinuumDeployment,
+  deployment: FermiV1Deployment,
 ): Record<string, string> {
   return {
-    CONTINUUM_DEPLOYMENT: deployment.name,
+    FERMI_DEPLOYMENT: deployment.name,
     CLUSTER: deployment.cluster,
     CLUSTER_URL: deployment.rpcUrl,
     PROGRAM_ID: deployment.programId,
@@ -172,3 +172,4 @@ export function deploymentEnv(
     FERMI_API_GRPC_ADDR: deployment.gatewayGrpcAddr ?? '',
   };
 }
+

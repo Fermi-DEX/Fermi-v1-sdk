@@ -16,7 +16,7 @@ import {
 
 /**
  * SPL Memo v2 program ID. The relayer scans for a memo instruction carrying
- * `fee_credit:v1:<user_owner>:<mango_account>` to attribute the deposit.
+ * `fee_credit:v1:<user_owner>:<fermi_account>` to attribute the deposit.
  */
 export const MEMO_PROGRAM_ID = new PublicKey(
   'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
@@ -116,7 +116,7 @@ export type FeeDepositReportResponse = {
 
 export type FeeStatusQuery = {
   userOwner: PublicKey | string;
-  mangoAccount: PublicKey | string;
+  fermiAccount: PublicKey | string;
   market?: number;
   group?: PublicKey | string;
   executionQueue?: PublicKey | string;
@@ -128,14 +128,14 @@ function pubkeyStr(value: PublicKey | string): string {
 
 /**
  * Build the canonical memo string the relayer expects inside the deposit tx
- * so it can attribute the transferred SOL to the right (owner, mango_account)
- * fee account: `fee_credit:v1:<user_owner>:<mango_account>`.
+ * so it can attribute the transferred SOL to the right (owner, fermi_account)
+ * fee account: `fee_credit:v1:<user_owner>:<fermi_account>`.
  */
 export function buildFeeDepositMemo(
   userOwner: PublicKey | string,
-  mangoAccount: PublicKey | string,
+  fermiAccount: PublicKey | string,
 ): string {
-  return `fee_credit:v1:${pubkeyStr(userOwner)}:${pubkeyStr(mangoAccount)}`;
+  return `fee_credit:v1:${pubkeyStr(userOwner)}:${pubkeyStr(fermiAccount)}`;
 }
 
 function memoInstruction(memo: string): TransactionInstruction {
@@ -149,7 +149,7 @@ function memoInstruction(memo: string): TransactionInstruction {
 export type BuildFeeDepositInstructionsInput = {
   payer: PublicKey;
   userOwner: PublicKey | string;
-  mangoAccount: PublicKey | string;
+  fermiAccount: PublicKey | string;
   depositAddress: PublicKey | string;
   lamports: number | bigint;
 };
@@ -180,7 +180,7 @@ export function buildFeeDepositInstructions(
     typeof input.depositAddress === 'string'
       ? new PublicKey(input.depositAddress)
       : input.depositAddress;
-  const memo = buildFeeDepositMemo(input.userOwner, input.mangoAccount);
+  const memo = buildFeeDepositMemo(input.userOwner, input.fermiAccount);
   const instructions: TransactionInstruction[] = [
     memoInstruction(memo),
     SystemProgram.transfer({
@@ -192,24 +192,24 @@ export function buildFeeDepositInstructions(
   return { instructions, memo, transferInstructionIndex: 1 };
 }
 
-export type ContinuumFeeClientOptions = {
-  /** Continuum proxy gateway REST base URL. */
+export type FermiV1FeeClientOptions = {
+  /** Fermi v1 gateway REST base URL. */
   gatewayUrl: string;
   /** UUID API key — sent as `x-api-key`. Required. */
   apiKey: string;
   fetchImpl?: typeof fetch;
 };
 
-export class ContinuumFeeClient {
+export class FermiV1FeeClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(opts: ContinuumFeeClientOptions) {
+  constructor(opts: FermiV1FeeClientOptions) {
     if (!opts || !opts.gatewayUrl) {
-      throw new Error('ContinuumFeeClient: gatewayUrl is required');
+      throw new Error('FermiV1FeeClient: gatewayUrl is required');
     }
-    this.apiKey = requireApiKey(opts.apiKey, 'ContinuumFeeClient');
+    this.apiKey = requireApiKey(opts.apiKey, 'FermiV1FeeClient');
     this.baseUrl = opts.gatewayUrl.endsWith('/')
       ? opts.gatewayUrl.slice(0, -1)
       : opts.gatewayUrl;
@@ -236,7 +236,7 @@ export class ContinuumFeeClient {
   async getStatus(query: FeeStatusQuery): Promise<FeeStatus> {
     const params = new URLSearchParams();
     params.set('user_owner', pubkeyStr(query.userOwner));
-    params.set('mango_account', pubkeyStr(query.mangoAccount));
+    params.set('mango_account', pubkeyStr(query.fermiAccount));
     if (query.market !== undefined) params.set('market', String(query.market));
     if (query.group) params.set('group', pubkeyStr(query.group));
     if (query.executionQueue) {
@@ -295,14 +295,14 @@ export type DepositFeeCreditInput = {
   connection: Connection;
   payer: Keypair;
   userOwner: PublicKey | string;
-  mangoAccount: PublicKey | string;
+  fermiAccount: PublicKey | string;
   lamports: number | bigint;
   /**
    * If omitted, the SDK calls `feeClient.getStatus` first to discover the
    * relayer's current deposit address. Supply it to skip the preflight.
    */
   depositAddress?: PublicKey | string;
-  feeClient: ContinuumFeeClient;
+  feeClient: FermiV1FeeClient;
   /** `solana` cluster label reported to the relayer (default `solana-devnet`). */
   sourceChain?: string;
   /** Header value for `Authorization` if the relayer enforces admin auth. */
@@ -323,7 +323,7 @@ export async function depositFeeCredit(
   if (!depositAddress) {
     const status = await input.feeClient.getStatus({
       userOwner: input.userOwner,
-      mangoAccount: input.mangoAccount,
+      fermiAccount: input.fermiAccount,
     });
     depositAddress = status.deposit.deposit_address;
   }
@@ -332,7 +332,7 @@ export async function depositFeeCredit(
     buildFeeDepositInstructions({
       payer: input.payer.publicKey,
       userOwner: input.userOwner,
-      mangoAccount: input.mangoAccount,
+      fermiAccount: input.fermiAccount,
       depositAddress,
       lamports: input.lamports,
     });
@@ -354,7 +354,7 @@ export async function depositFeeCredit(
       source_tx_signature: signature,
       instruction_index: transferInstructionIndex,
       user_owner: pubkeyStr(input.userOwner),
-      mango_account: pubkeyStr(input.mangoAccount),
+      mango_account: pubkeyStr(input.fermiAccount),
       amount_lamports: amountLamports,
       deposit_address: pubkeyStr(depositAddress),
       memo,

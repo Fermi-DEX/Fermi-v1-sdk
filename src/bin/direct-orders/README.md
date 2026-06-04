@@ -14,12 +14,12 @@ Required base env:
 - `CLUSTER_URL`
 - `USER_KEYPAIR`
 - `GROUP_PK`
-- `MANGO_ACCOUNT_PK`
+- `FERMI_ACCOUNT_PK`
 
 Optional:
 
 - `HARNESS_URL` for lane registration and local optimistic tracking
-- `PROGRAM_ID` to override the Mango program id
+- `PROGRAM_ID` to override the Fermi v1 program id
 - `EXECUTION_QUEUE_PK` for legacy/manual compatibility; the v5 direct script derives the per-market queue PDA
 
 Place-order env:
@@ -47,5 +47,5 @@ npm run direct-place-order
 or
 
 ```bash
-npx continuum-direct-place-order
+npx fermi-v1-direct-place-order
 ```

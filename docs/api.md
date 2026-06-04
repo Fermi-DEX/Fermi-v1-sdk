@@ -1,6 +1,6 @@
-# Continuum State Harness API Reference
+# Fermi v1 State API API Reference
 
-This document is the end-user API reference for the local/testnet/mainnet **Continuum State Harness** service.
+This document is the end-user API reference for the local/testnet/mainnet **Fermi v1 State API** service.
 
 The harness provides a single HTTP/SSE surface for:
 
@@ -28,7 +28,7 @@ fee HTTP.
 
 Set via:
 
-- `CONTINUUM_HARNESS_BIND_ADDR`
+- `FERMI_V1_STATE_BIND_ADDR`
 
 ### Exact Localhost Endpoints Requested
 
@@ -39,7 +39,7 @@ Set via:
 - `http://127.0.0.1:9091/state/trades/<market>?view=optimistic|confirmed&limit=200`
 - `http://127.0.0.1:9091/state/trades/summary?market=<market>&owner=<owner>&view=optimistic|confirmed`
 - `http://127.0.0.1:9091/state/stream/trades?market=<market>&view=optimistic|confirmed&backfill_n=50`
-- `http://127.0.0.1:9091/state/stream/frontend?owner=<owner>&mango_account=<account>&market=<market>`
+- `http://127.0.0.1:9091/state/stream/frontend?owner=<owner>&fermi_account=<account>&market=<market>`
 - `http://127.0.0.1:9091/state/candles/<market>?view=optimistic|confirmed&resolution_sec=60&limit=200`
 - `http://127.0.0.1:9091/airdrop` (POST body with connected wallet pubkey)
 - `http://127.0.0.1:9091/airdrop-deposit` (POST body with connected wallet pubkey)
@@ -52,7 +52,7 @@ Set via:
 
 `POST /ingest/relay-intent` optionally requires bearer token auth.
 
-- Env: `CONTINUUM_HARNESS_RELAY_INGEST_TOKEN`
+- Env: `FERMI_V1_STATE_RELAY_INGEST_TOKEN`
 - Header:
 
 ```http
@@ -179,16 +179,16 @@ Prometheus-style gauges.
 Response `200` (text):
 
 ```text
-# TYPE continuum_harness_intents_total gauge
-continuum_harness_intents_total 10
-# TYPE continuum_harness_divergences_total gauge
-continuum_harness_divergences_total 0
-# TYPE continuum_harness_markets_total gauge
-continuum_harness_markets_total 1
-# TYPE continuum_harness_users_total gauge
-continuum_harness_users_total 2
-# TYPE continuum_harness_sse_clients gauge
-continuum_harness_sse_clients 0
+# TYPE fermi-v1_harness_intents_total gauge
+fermi-v1_harness_intents_total 10
+# TYPE fermi-v1_harness_divergences_total gauge
+fermi-v1_harness_divergences_total 0
+# TYPE fermi-v1_harness_markets_total gauge
+fermi-v1_harness_markets_total 1
+# TYPE fermi-v1_harness_users_total gauge
+fermi-v1_harness_users_total 2
+# TYPE fermi-v1_harness_sse_clients gauge
+fermi-v1_harness_sse_clients 0
 ```
 
 ### `GET /diagnostics/divergence?limit=<n>`
@@ -274,7 +274,7 @@ Errors:
 
 ### `POST /airdrop-deposit`
 
-Credits `1000 USDC` directly inside Mango protocol accounting for a user via the on-chain `unsafe_deposit` instruction.
+Credits `1000 USDC` directly inside Fermi v1 protocol accounting for a user via the on-chain `unsafe_deposit` instruction.
 
 This is intentionally unsafe and test-only. It bypasses real token transfer semantics and must never be enabled in production.
 
@@ -283,14 +283,14 @@ Request body:
 ```json
 {
   "owner": "FByAc4zWBnKKKnvdXSscFsztYBLgbUtmbVobnMVYxzkC",
-  "mango_account": "optional-mango-account-pubkey"
+  "fermi_account": "optional-mango-account-pubkey"
 }
 ```
 
 Notes:
 
-- `ui_amount` is fixed by harness config (`CONTINUUM_HARNESS_AIRDROP_DEPOSIT_UI_AMOUNT`, default `1000`).
-- If `mango_account` is omitted, the first Mango account for `owner` in the configured group is used.
+- `ui_amount` is fixed by harness config (`FERMI_V1_STATE_AIRDROP_DEPOSIT_UI_AMOUNT`, default `1000`).
+- If `fermi_account` is omitted, the first Fermi v1 account for `owner` in the configured group is used.
 
 Response `200`:
 
@@ -298,7 +298,7 @@ Response `200`:
 {
   "ok": true,
   "owner": "FByAc4zWBnKKKnvdXSscFsztYBLgbUtmbVobnMVYxzkC",
-  "mango_account": "gddrsZnnddtquJHquhCmqq3bekkW3MN5SBCSJSij79j",
+  "fermi_account": "gddrsZnnddtquJHquhCmqq3bekkW3MN5SBCSJSij79j",
   "group": "9VYm4QaBhEPEiFfyGxXEDpN7ZTh2muajTDebKrDL4f5k",
   "mint": "DnTjy48VD6KN2mkXoaHjmgtMxjT1Ub9dc64vxPfiHomA",
   "ui_amount": 1000,
@@ -337,7 +337,7 @@ pipeline on chain:
 
 Clients **do not** build, sign, or track the commit/reveal transactions —
 the relayer handles that. Clients sign only the current
-`mango-v5-user-intent-v2` intent digest.
+`fermi-v1-user-intent-v2` intent digest.
 
 ### gRPC `CtmSequencerRelayer.SubmitIntent` — default port `:9090`
 
@@ -360,7 +360,7 @@ message SubmitIntentRequest {
   uint64 min_execute_slot    = 6;   // 0 = asap
   uint64 expires_at_slot     = 7;   // 0 = never
   string user_owner          = 8;   // base58
-  string mango_account       = 9;   // base58, must exist under the group
+  string fermi_account       = 9;   // base58, must exist under the group
   bytes  user_signature      = 10;  // 64-byte ed25519 signature (see signing)
   string base_fee            = 11;  // legacy fee-cap alias
   uint32 intent_version      = 12;  // 2
@@ -402,7 +402,7 @@ Request body:
   "min_execute_slot": "0",
   "expires_at_slot": "0",
   "user_owner": "BvUeT57AWhCjAYfBAQrtuHT24BsBa94uiDhPnVp3kTa7",
-  "mango_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
+  "fermi_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
   "user_signature_b64": "<base64 of 64-byte ed25519 signature>",
   "intent_version": 2,
   "target_kind": 0,
@@ -430,7 +430,7 @@ Errors:
 
 ### Helper endpoint: `GET /relay/config?owner=<pubkey>` — port `:9092`
 
-Returns the group/queue/market/mango_account bundle + execution lanes for
+Returns the group/queue/market/fermi_account bundle + execution lanes for
 the given owner so clients can populate the submit request correctly.
 
 ```json
@@ -438,8 +438,8 @@ the given owner so clients can populate the submit request correctly.
   "group": "3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi",
   "execution_queue": "5d9v9RF6EZMA4NXnGPN2ikshTgY4FCcJDoFPkjofRtWa",
   "market": "0",
-  "mango_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
-  "owner_to_mango_account": { "BvUeT57A...": "FGxSs4fio..." },
+  "fermi_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
+  "owner_to_fermi_account": { "BvUeT57A...": "FGxSs4fio..." },
   "lanes": [
     {
       "name": "lane-0",
@@ -493,9 +493,9 @@ Clients sign `canonical_user_intent_message_v3`:
 
 ```
 msg_hash = sha256(
-    "mango-v5-user-intent-v2"    // literal
+    "fermi-v1-user-intent-v2"    // literal
     || group                      // 32 bytes
-    || mango_account              // 32 bytes
+    || fermi_account              // 32 bytes
     || user_owner                 // 32 bytes
     || [kind=0]                   // u8, CtmWrapped
     || [target_kind=0]            // u8, PerpMarket
@@ -573,7 +573,7 @@ Two event variants share this endpoint:
   "min_execute_slot": "456363733",
   "expires_at_slot": "0",
   "user_owner": "BvUeT57AWhCjAYfBAQrtuHT24BsBa94uiDhPnVp3kTa7",
-  "mango_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
+  "fermi_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
   "enqueue_tx_signature": "5qrsaYGu..."
 }
 ```
@@ -602,7 +602,7 @@ event on the SSE stream.
   "sequence": "1274",
   "kind": 0,
   "user_owner": "...",
-  "mango_account": "...",
+  "fermi_account": "...",
   "tx_signature": "5qrsaYGu...",
   "grpc_code": null,
   "queue_process_status": null,
@@ -628,7 +628,7 @@ Response `202`:
 
 Errors:
 
-- `401` unauthorized (when `CONTINUUM_HARNESS_RELAY_INGEST_TOKEN` is set and missing/invalid)
+- `401` unauthorized (when `FERMI_V1_STATE_RELAY_INGEST_TOKEN` is set and missing/invalid)
 - `500` parse/validation errors
 
 ## 3) State Read API
@@ -759,7 +759,7 @@ Example response:
   "view": "confirmed",
   "data": {
     "owner": "...",
-    "mango_accounts": ["..."],
+    "fermi_accounts": ["..."],
     "open_orders": [],
     "per_market": [
       {
@@ -790,7 +790,7 @@ Response `200`:
   "view": "optimistic",
   "data": {
     "owner": "...",
-    "mango_accounts": ["..."],
+    "fermi_accounts": ["..."],
     "per_market": [
       {
         "market": "0",
@@ -835,7 +835,7 @@ Response `200`:
     {
       "order_id": "...",
       "owner": "...",
-      "mango_account": "...",
+      "fermi_account": "...",
       "market": "0",
       "side": "ask",
       "price_lots": "101",
@@ -1047,13 +1047,13 @@ event: trade
 data: {"trade_id":"...","market":"0", ...}
 ```
 
-### `GET /state/stream/frontend?owner=<owner>&mango_account=<account>&market=<market>&include=...`
+### `GET /state/stream/frontend?owner=<owner>&fermi_account=<account>&market=<market>&include=...`
 
 Frontend-oriented SSE stream for owner and/or market slices.
 
 Behavior:
 
-- requires at least one of `owner`, `mango_account`, or `market`
+- requires at least one of `owner`, `fermi_account`, or `market`
 - emits `snapshot` on connect
 - emits `account_update` when the owner slice changes
 - emits `market_update` when the market slice changes
@@ -1106,14 +1106,14 @@ Common statuses:
 
 A typed client wrapper is available in:
 
-- `ts/client/src/continuumHarnessClient.ts`
+- `ts/client/src/fermi-v1HarnessClient.ts`
 
 Example:
 
 ```ts
-import { ContinuumHarnessClient } from '@blockworks-foundation/mango-v4';
+import { FermiV1StateClient } from '@fermilabs/fermi-v1-sdk';
 
-const client = new ContinuumHarnessClient('http://127.0.0.1:9091');
+const client = new FermiV1StateClient('http://127.0.0.1:9091');
 
 const health = await client.healthz();
 const market = await client.getMarketState('0', 'optimistic');
@@ -1144,29 +1144,29 @@ const full = await client.getFullState('confirmed');
 
 These scripts are part of the operational API workflow:
 
-- `yarn continuum-state-harness-verify`
-  - compares harness view to on-chain Mango perp open orders.
-- `yarn continuum-state-harness-replay-check`
+- `yarn fermi-v1-state-harness-verify`
+  - compares harness view to on-chain Fermi v1 perp open orders.
+- `yarn fermi-v1-state-harness-replay-check`
   - shuffles captured JSONL events and checks deterministic replay outputs.
 
 ## Environment Variables (Harness)
 
-- `CONTINUUM_HARNESS_BIND_ADDR`
-- `CONTINUUM_HARNESS_MODE`
-- `CONTINUUM_HARNESS_PROGRAM_ID`
-- `CONTINUUM_HARNESS_EVENT_LOG_PATH`
-- `CONTINUUM_HARNESS_RELAY_INGEST_TOKEN`
-- `CONTINUUM_HARNESS_REPLAY_LOG`
-- `CONTINUUM_HARNESS_BACKFILL_SIGNATURE_LIMIT`
-- `CONTINUUM_HARNESS_COMMITMENT`
-- `CONTINUUM_HARNESS_REQUEST_BODY_MAX_BYTES`
-- `CONTINUUM_HARNESS_ENABLE_AIRDROP`
-- `CONTINUUM_HARNESS_USDC_MINT`
-- `CONTINUUM_HARNESS_AIRDROP_KEYPAIR`
-- `CONTINUUM_HARNESS_AIRDROP_DEFAULT_UI_AMOUNT`
-- `CONTINUUM_HARNESS_AIRDROP_MAX_UI_AMOUNT`
-- `CONTINUUM_HARNESS_GROUP_PK`
-- `CONTINUUM_HARNESS_AIRDROP_DEPOSIT_UI_AMOUNT`
+- `FERMI_V1_STATE_BIND_ADDR`
+- `FERMI_V1_STATE_MODE`
+- `FERMI_V1_STATE_PROGRAM_ID`
+- `FERMI_V1_STATE_EVENT_LOG_PATH`
+- `FERMI_V1_STATE_RELAY_INGEST_TOKEN`
+- `FERMI_V1_STATE_REPLAY_LOG`
+- `FERMI_V1_STATE_BACKFILL_SIGNATURE_LIMIT`
+- `FERMI_V1_STATE_COMMITMENT`
+- `FERMI_V1_STATE_REQUEST_BODY_MAX_BYTES`
+- `FERMI_V1_STATE_ENABLE_AIRDROP`
+- `FERMI_V1_STATE_USDC_MINT`
+- `FERMI_V1_STATE_AIRDROP_KEYPAIR`
+- `FERMI_V1_STATE_AIRDROP_DEFAULT_UI_AMOUNT`
+- `FERMI_V1_STATE_AIRDROP_MAX_UI_AMOUNT`
+- `FERMI_V1_STATE_GROUP_PK`
+- `FERMI_V1_STATE_AIRDROP_DEPOSIT_UI_AMOUNT`
 
 ## Environment Variables (Relayer -> Harness Sink)
 

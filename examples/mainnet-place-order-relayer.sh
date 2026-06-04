@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export CONTINUUM_DEPLOYMENT="${CONTINUUM_DEPLOYMENT:-fermi-r6-mainnet}"
+export FERMI_DEPLOYMENT="${FERMI_DEPLOYMENT:-fermi-r6-mainnet}"
 export PERP_ORDER_MARKET_INDEX="${PERP_ORDER_MARKET_INDEX:-${PERP_MARKET_INDEX:-0}}"
 export PERP_ORDER_TYPE="${PERP_ORDER_TYPE:-postOnlySlide}"
 export PERP_ORDER_SELF_TRADE_BEHAVIOR="${PERP_ORDER_SELF_TRADE_BEHAVIOR:-decrementTake}"
@@ -11,7 +11,7 @@ export PERP_ORDER_MATCH_LIMIT="${PERP_ORDER_MATCH_LIMIT:-10}"
 export PERP_ORDER_MAX_FEE_LAMPORTS="${PERP_ORDER_MAX_FEE_LAMPORTS:-${RELAYER_MAX_FEE_LAMPORTS:-AUTO}}"
 
 : "${USER_KEYPAIR:?set USER_KEYPAIR to a mainnet wallet keypair JSON path}"
-: "${MANGO_ACCOUNT_PK:?set MANGO_ACCOUNT_PK to the Mango account to trade}"
+: "${FERMI_ACCOUNT_PK:?set FERMI_ACCOUNT_PK to the Fermi v1 account to trade}"
 : "${PERP_ORDER_SIDE:?set PERP_ORDER_SIDE to bid|ask}"
 : "${PERP_ORDER_PRICE:?set PERP_ORDER_PRICE to a UI price}"
 : "${PERP_ORDER_QUANTITY:?set PERP_ORDER_QUANTITY to a UI base quantity}"

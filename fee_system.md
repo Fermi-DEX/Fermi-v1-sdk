@@ -1,17 +1,17 @@
 # Relayer Fee System
 
-This document describes how external clients interact with the Continuum
+This document describes how external clients interact with the Fermi v1
 relayer's fee ledger through `cont-sdk-fresh`. The SDK helpers live in
 `src/fees.ts` and re-export through the package root.
 
-The fee system is external to the signed core Mango intent. Users sign the
-canonical Mango execution-queue intent message; fee preferences are sent only
+The fee system is external to the signed core Fermi v1 intent. Users sign the
+canonical Fermi v1 execution-queue intent message; fee preferences are sent only
 to the relayer.
 
 ## Overview
 
 The relayer maintains an off-chain SOL-denominated fee balance per
-`(user_owner, mango_account)` pair. Every intent the relayer accepts debits
+`(user_owner, fermi_account)` pair. Every intent the relayer accepts debits
 that balance by the current quoted fee. When an account's balance is
 exhausted, further submits are rejected until the wallet tops up.
 
@@ -98,9 +98,9 @@ Query params (URL-encoded):
 | Name              | Required | Notes                                                    |
 | ----------------- | -------- | -------------------------------------------------------- |
 | `user_owner`      | yes      | Wallet pubkey (base58).                                  |
-| `mango_account`   | yes      | Mango account pubkey (base58).                           |
+| `fermi_account`   | yes      | Fermi v1 account pubkey (base58).                           |
 | `market`          | no       | Perp market index. Alias: `market_index`. Default: 0.    |
-| `group`           | no       | Mango group pubkey. Used to derive the queue quote.      |
+| `group`           | no       | Fermi v1 group pubkey. Used to derive the queue quote.      |
 | `execution_queue` | no       | Per-market queue PDA. If present, the quote reflects it. |
 
 Response body (`FeeStatus`):
@@ -109,10 +109,10 @@ Response body (`FeeStatus`):
 {
   "ok": true,
   "user_owner": "...",
-  "mango_account": "...",
+  "fermi_account": "...",
   "enforcement_mode": "enforce",
   "fee_account": {
-    "mango_account": "...",
+    "fermi_account": "...",
     "user_owner": "...",
     "sponsored_seed_total_lamports": 100000000,
     "sponsored_seed_remaining_lamports": 32475000,
@@ -141,7 +141,7 @@ Response body (`FeeStatus`):
   },
   "deposit": {
     "deposit_address": "CyJSpqonriELcXeSQXnZ17AQsb77ZsHWFdttMmBstq8s",
-    "memo": "fee_credit:v1:<user_owner>:<mango_account>",
+    "memo": "fee_credit:v1:<user_owner>:<fermi_account>",
     "crediting_path": "/fees-deposited",
     "enforcement_mode": "enforce"
   },
@@ -162,10 +162,10 @@ Body (`FeeDepositCreditRequest`):
   "source_tx_signature": "<signature of the deposit tx>",
   "instruction_index": 1,
   "user_owner": "...",
-  "mango_account": "...",
+  "fermi_account": "...",
   "amount_lamports": 100000000,
   "deposit_address": "CyJSpqonriELcXeSQXnZ17AQsb77ZsHWFdttMmBstq8s",
-  "memo": "fee_credit:v1:<user_owner>:<mango_account>",
+  "memo": "fee_credit:v1:<user_owner>:<fermi_account>",
   "observed_at_ms": 1777020802538
 }
 ```
@@ -237,7 +237,7 @@ The deposit tx must contain exactly two instructions in this order:
 The memo string is:
 
 ```text
-fee_credit:v1:<user_owner>:<mango_account>
+fee_credit:v1:<user_owner>:<fermi_account>
 ```
 
 `FeeDepositCreditRequest.instruction_index` must be `1` (the transfer ix).
@@ -255,20 +255,20 @@ Import from the SDK root:
 
 ```ts
 import {
-  ContinuumFeeClient,
+  FermiV1FeeClient,
   buildFeeDepositInstructions,
   buildFeeDepositMemo,
   depositFeeCredit,
-} from '@fermilabs/continuum-sdk';
+} from '@fermilabs/fermi-v1-sdk';
 ```
 
 ### Check balance and current quote
 
 ```ts
-const fees = new ContinuumFeeClient('http://127.0.0.1:9093');
+const fees = new FermiV1FeeClient('http://127.0.0.1:9093');
 const status = await fees.getStatus({
   userOwner: wallet.publicKey,
-  mangoAccount,
+  fermiAccount,
   market: 1,
 });
 console.log('available:', status.fee_account.available_balance_lamports);
@@ -310,12 +310,12 @@ The same fee preference applies to:
 ### Deposit (one-shot)
 
 ```ts
-const fees = new ContinuumFeeClient('http://127.0.0.1:9093');
+const fees = new FermiV1FeeClient('http://127.0.0.1:9093');
 const resp = await depositFeeCredit({
   connection,
   payer, // Keypair - also the user_owner signer
   userOwner: payer.publicKey,
-  mangoAccount,
+  fermiAccount,
   lamports: 100_000_000, // 0.1 SOL
   feeClient: fees,
   // optional: depositAddress if you want to skip the /fees/status preflight
@@ -328,7 +328,7 @@ console.log('credited:', resp.fee_account.paid_credit_remaining_lamports);
 
 ```ts
 // 1. Discover the deposit address.
-const status = await fees.getStatus({ userOwner, mangoAccount });
+const status = await fees.getStatus({ userOwner, fermiAccount });
 const depositAddress = status.deposit.deposit_address;
 
 // 2. Build the two required instructions.
@@ -336,7 +336,7 @@ const { instructions, memo, transferInstructionIndex } =
   buildFeeDepositInstructions({
     payer: payer.publicKey,
     userOwner,
-    mangoAccount,
+    fermiAccount,
     depositAddress,
     lamports: 100_000_000,
   });
@@ -351,7 +351,7 @@ const resp = await fees.reportDeposit({
   source_tx_signature: sig,
   instruction_index: transferInstructionIndex, // always 1
   user_owner: userOwner.toBase58(),
-  mango_account: mangoAccount.toBase58(),
+  fermi_account: fermiAccount.toBase58(),
   amount_lamports: 100_000_000,
   deposit_address: depositAddress,
   memo,
@@ -371,7 +371,7 @@ const resp = await fees.reportDeposit({
   "min_execute_slot": "0",
   "expires_at_slot": "0",
   "user_owner": "<wallet>",
-  "mango_account": "<mango_account>",
+  "fermi_account": "<fermi_account>",
   "client_order_id": "1775489806394",
   "user_signature_b64": "<signature>"
 }
@@ -410,13 +410,13 @@ From `/fees/status` / `/fees-deposited`:
   once it is exhausted.
 - `deposit.deposit_address` can change if the relayer operator rotates the
   payer; do not hardcode it client-side.
-- Keep one `(user_owner, mango_account)` pair per logical bot. The ledger key
-  is the pair, so using two different Mango accounts with the same wallet
+- Keep one `(user_owner, fermi_account)` pair per logical bot. The ledger key
+  is the pair, so using two different Fermi v1 accounts with the same wallet
   means two independent balances.
 
 Do not:
 
-- assume Mango margin deposits fund relayer fees automatically
+- assume Fermi v1 margin deposits fund relayer fees automatically
 - assume the relayer reads the wallet's live on-chain SOL balance
 - sign `max_fee_lamports` into the core user-intent digest
 - rely on the relayer charging your requested cap exactly

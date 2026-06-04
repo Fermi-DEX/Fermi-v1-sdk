@@ -1,13 +1,15 @@
 import { AnchorProvider } from '@coral-xyz/anchor';
 import { Cluster } from '@solana/web3.js';
 import {
-  ContinuumDeployment,
-  requireContinuumDeployment,
+  FermiV1Deployment,
+  requireFermiV1Deployment,
 } from '../deployments';
 
-export function deploymentFromEnv(): ContinuumDeployment | undefined {
-  const name = process.env.CONTINUUM_DEPLOYMENT;
-  return name ? requireContinuumDeployment(name) : undefined;
+export const DEFAULT_FERMI_DEPLOYMENT = 'fermi-r6-mainnet';
+
+export function deploymentFromEnv(): FermiV1Deployment | undefined {
+  const name = process.env.FERMI_DEPLOYMENT || process.env.FERMI_DEPLOYMENT || DEFAULT_FERMI_DEPLOYMENT;
+  return requireFermiV1Deployment(name);
 }
 
 export function optionalEnv(name: string, fallback?: string): string | undefined {
@@ -23,7 +25,7 @@ export function requiredEnv(name: string, fallback?: string): string {
   return value;
 }
 
-export function clusterFromEnv(defaultCluster: Cluster = 'devnet'): Cluster {
+export function clusterFromEnv(defaultCluster: Cluster = 'mainnet-beta'): Cluster {
   const deployment = deploymentFromEnv();
   return (process.env.CLUSTER || deployment?.cluster || defaultCluster) as Cluster;
 }
@@ -51,8 +53,8 @@ function warnDeprecatedEnvsOnce(): void {
   if (set.length) {
     // eslint-disable-next-line no-console
     console.warn(
-      `[continuum-sdk] ignoring deprecated env(s) ${set.join(', ')}; ` +
-        `the SDK now routes all traffic through the Fermi proxy gateway — set ` +
+      `[fermi-v1-sdk] ignoring deprecated env(s) ${set.join(', ')}; ` +
+        `the SDK routes traffic through the Fermi v1 gateway — set ` +
         `FERMI_API_URL, FERMI_API_GRPC_ADDR, FERMI_API_KEY`,
     );
   }

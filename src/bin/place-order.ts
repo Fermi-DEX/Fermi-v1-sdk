@@ -6,8 +6,8 @@ import {
   PerpOrderType,
   PerpSelfTradeBehavior,
 } from '@blockworks-foundation/mango-v4';
-import { createMangoContext } from '../context';
-import { ContinuumRelayerClient } from '../relayerClient';
+import { createFermiV1Context } from '../context';
+import { FermiV1RelayerClient } from '../relayerClient';
 import { submitPerpOrderViaRelayer } from '../trading';
 import {
   apiKeyFromEnv,
@@ -115,19 +115,19 @@ async function main(): Promise<void> {
   }
 
   const apiKey = apiKeyFromEnv();
-  const context = await createMangoContext({
+  const context = await createFermiV1Context({
     cluster: clusterFromEnv(),
     clusterUrl: clusterUrlFromEnv(),
-    deployment: process.env.CONTINUUM_DEPLOYMENT,
+    deployment: process.env.FERMI_DEPLOYMENT,
     gatewayUrl: gatewayUrlFromEnv(),
     gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
     apiKey,
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: groupPkFromEnv(),
-    mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),
+    fermiAccountPk: requiredEnv('FERMI_ACCOUNT_PK'),
     programId: process.env.PROGRAM_ID,
   });
-  const relayer = new ContinuumRelayerClient({
+  const relayer = new FermiV1RelayerClient({
     gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
     apiKey,
   });
@@ -166,7 +166,7 @@ async function main(): Promise<void> {
           cluster: context.config.cluster,
           market_index: marketIndex,
           owner: context.user.publicKey.toBase58(),
-          mango_account: context.mangoAccount.publicKey.toBase58(),
+          mango_account: context.fermiAccount.publicKey.toBase58(),
           client_order_id: clientOrderId.toString(),
           sequence: result.sequence,
           tx_signature: result.tx_signature,

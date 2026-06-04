@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto';
 import { PerpOrderSide, PerpOrderType } from '@blockworks-foundation/mango-v4';
-import { MangoContext } from './context';
-import { ContinuumHarnessClient, MarketState } from './harness';
-import { ContinuumRelayerClient } from './relayerClient';
+import { FermiV1Context } from './context';
+import { FermiV1StateClient, MarketState } from './harness';
+import { FermiV1RelayerClient } from './relayerClient';
 import {
   cancelPerpOrderByClientIdViaRelayer,
   submitPerpOrderViaRelayer,
@@ -67,9 +67,9 @@ export class RelayerPerpQuoterBot {
   private running = false;
 
   constructor(
-    private readonly context: MangoContext,
-    private readonly relayer: ContinuumRelayerClient,
-    private readonly harness: ContinuumHarnessClient | null,
+    private readonly context: FermiV1Context,
+    private readonly relayer: FermiV1RelayerClient,
+    private readonly harness: FermiV1StateClient | null,
     private readonly fairPriceProvider: FairPriceProvider,
     private readonly config: RelayerPerpQuoterBotConfig,
   ) {}

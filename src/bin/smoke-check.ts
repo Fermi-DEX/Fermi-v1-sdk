@@ -3,13 +3,13 @@
 import 'dotenv/config';
 import { Connection } from '@solana/web3.js';
 import {
-  ContinuumHarnessClient,
+  FermiV1StateClient,
   HarnessDeploymentConfig,
 } from '../harness';
-import { ContinuumRelayerClient } from '../relayerClient';
-import { ContinuumFeeClient } from '../fees';
+import { FermiV1RelayerClient } from '../relayerClient';
+import { FermiV1FeeClient } from '../fees';
 import { toPublicKey } from '../context';
-import { ContinuumDeployment } from '../deployments';
+import { FermiV1Deployment } from '../deployments';
 import {
   apiKeyFromEnv,
   deploymentFromEnv,
@@ -47,7 +47,7 @@ function pad(s: string, n: number): string {
 
 function validateHarnessConfig(
   config: HarnessDeploymentConfig,
-  deployment: ContinuumDeployment,
+  deployment: FermiV1Deployment,
 ): void {
   const mismatches: string[] = [];
   if (config.program_id !== deployment.programId) {
@@ -130,7 +130,7 @@ async function main(): Promise<void> {
       if (!gatewayUrl || !apiKey) {
         throw new Error('FERMI_API_URL / FERMI_API_KEY not set (skip)');
       }
-      const client = new ContinuumHarnessClient({ gatewayUrl, apiKey });
+      const client = new FermiV1StateClient({ gatewayUrl, apiKey });
       const h = await client.healthz();
       let configDetail = '';
       if (deployment) {
@@ -151,7 +151,7 @@ async function main(): Promise<void> {
       }
       // gRPC clients connect lazily; force a real call so we surface
       // dial failures here rather than at first submit.
-      const client = new ContinuumRelayerClient({
+      const client = new FermiV1RelayerClient({
         gatewayGrpcAddr,
         apiKey,
       });
@@ -188,21 +188,21 @@ async function main(): Promise<void> {
   });
 
   const userOwner = process.env.USER_OWNER_PK || process.env.OWNER;
-  const mangoAccount = process.env.MANGO_ACCOUNT_PK;
+  const fermiAccount = process.env.FERMI_ACCOUNT_PK;
   probes.push({
     name: 'gateway-fees',
-    required: gatewayUrl !== undefined && !!userOwner && !!mangoAccount,
+    required: gatewayUrl !== undefined && !!userOwner && !!fermiAccount,
     fn: async () => {
       if (!gatewayUrl || !apiKey) {
         throw new Error('FERMI_API_URL / FERMI_API_KEY not set (skip)');
       }
-      if (!userOwner || !mangoAccount) {
-        return 'set USER_OWNER_PK + MANGO_ACCOUNT_PK for a real fee balance probe';
+      if (!userOwner || !fermiAccount) {
+        return 'set USER_OWNER_PK + FERMI_ACCOUNT_PK for a real fee balance probe';
       }
-      const fees = new ContinuumFeeClient({ gatewayUrl, apiKey });
+      const fees = new FermiV1FeeClient({ gatewayUrl, apiKey });
       const status = await fees.getStatus({
         userOwner: toPublicKey(userOwner),
-        mangoAccount: toPublicKey(mangoAccount),
+        fermiAccount: toPublicKey(fermiAccount),
       });
       const balance = status.fee_account?.available_balance_lamports ?? '?';
       return `deposit=${status.deposit?.deposit_address || '?'} balance=${balance}`;
@@ -210,7 +210,7 @@ async function main(): Promise<void> {
   });
 
   let allRequiredOk = true;
-  console.log('continuum smoke-check');
+  console.log('fermi-v1 smoke-check');
   console.log('---------------------');
   for (const probe of probes) {
     const res = await timed(probe.fn);

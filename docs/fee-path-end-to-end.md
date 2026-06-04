@@ -1,12 +1,12 @@
 # Relayer Fee Path End To End
 
 This guide is the client-side sequence for using relayer fees from
-`cont-sdk-fresh`. The fee path is separate from Mango margin and separate from
+`cont-sdk-fresh`. The fee path is separate from Fermi v1 margin and separate from
 the signed user-intent digest.
 
 ## Ports And URLs
 
-For the current Continuum service layout:
+For the current Fermi v1 service layout:
 
 | Purpose | Default port | Client setting |
 | ------- | ------------ | -------------- |
@@ -33,7 +33,7 @@ supported, but cap rejections can interrupt market making during queue pressure.
 
 ## End-To-End Flow
 
-1. Build a Mango context from the trading wallet and Mango account.
+1. Build a Fermi v1 context from the trading wallet and Fermi v1 account.
 2. Query `/fees/status` before the first submit.
 3. If the available fee balance is low, deposit SOL to the returned
    `deposit.deposit_address` with the exact returned memo.
@@ -44,29 +44,29 @@ supported, but cap rejections can interrupt market making during queue pressure.
 
 ```ts
 import {
-  ContinuumFeeClient,
-  ContinuumRelayerClient,
+  FermiV1FeeClient,
+  FermiV1RelayerClient,
   PerpOrderSide,
-  createMangoContext,
+  createFermiV1Context,
   depositFeeCredit,
   submitPerpOrderViaRelayer,
-} from '@fermilabs/continuum-sdk';
+} from '@fermilabs/fermi-v1-sdk';
 
-const context = await createMangoContext({
+const context = await createFermiV1Context({
   cluster: 'devnet',
   clusterUrl: process.env.CLUSTER_URL!,
   userKeypair: process.env.USER_KEYPAIR!,
   groupPk: process.env.GROUP_PK!,
-  mangoAccountPk: process.env.MANGO_ACCOUNT_PK!,
+  fermiAccountPk: process.env.FERMI_ACCOUNT_PK!,
   programId: process.env.PROGRAM_ID,
 });
 
-const fees = new ContinuumFeeClient(process.env.FEE_HTTP_URL!);
-const relayer = new ContinuumRelayerClient(process.env.RELAYER_ADDR!);
+const fees = new FermiV1FeeClient(process.env.FEE_HTTP_URL!);
+const relayer = new FermiV1RelayerClient(process.env.RELAYER_ADDR!);
 
 const status = await fees.getStatus({
   userOwner: context.user.publicKey,
-  mangoAccount: context.mangoAccount.publicKey,
+  fermiAccount: context.fermiAccount.publicKey,
   group: context.group.publicKey,
   market: 0,
 });
@@ -79,7 +79,7 @@ if (
     connection: context.connection,
     payer: context.user,
     userOwner: context.user.publicKey,
-    mangoAccount: context.mangoAccount.publicKey,
+    fermiAccount: context.fermiAccount.publicKey,
     lamports: 100_000_000,
     feeClient: fees,
   });
@@ -102,7 +102,7 @@ to build and send the transaction itself, the transaction must contain:
 
 | Index | Instruction |
 | ----- | ----------- |
-| `0` | SPL Memo v2 with `fee_credit:v1:<user_owner>:<mango_account>` |
+| `0` | SPL Memo v2 with `fee_credit:v1:<user_owner>:<fermi_account>` |
 | `1` | `SystemProgram.transfer` from `user_owner` to `deposit.deposit_address` |
 
 Then call:
@@ -113,7 +113,7 @@ await fees.reportDeposit({
   source_tx_signature: signature,
   instruction_index: 1,
   user_owner: context.user.publicKey.toBase58(),
-  mango_account: context.mangoAccount.publicKey.toBase58(),
+  fermi_account: context.fermiAccount.publicKey.toBase58(),
   amount_lamports: 100_000_000,
   deposit_address: status.deposit.deposit_address,
   memo: status.deposit.memo,
@@ -125,13 +125,13 @@ index, so reporting the same confirmed deposit again is safe.
 
 ## Operational Gotchas
 
-- Mango USDC deposits do not fund relayer fees. The fee ledger is a separate
+- Fermi v1 USDC deposits do not fund relayer fees. The fee ledger is a separate
   SOL-denominated relayer balance.
 - The relayer does not charge the wallet's live on-chain SOL balance directly;
   it only debits the internal fee ledger.
-- `maxFeeLamports` is not signed into the Mango user-intent message. Changing
+- `maxFeeLamports` is not signed into the Fermi v1 user-intent message. Changing
   it cannot cause signature verification failure.
-- Keep one `(user_owner, mango_account)` pair per bot identity. Fee balances
+- Keep one `(user_owner, fermi_account)` pair per bot identity. Fee balances
   are keyed by that pair.
 - In concurrent bots, treat `available_balance_lamports` as a moving value
   because in-flight intents can reserve fee balance before they settle.

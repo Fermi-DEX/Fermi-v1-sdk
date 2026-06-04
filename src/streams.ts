@@ -1,5 +1,5 @@
 /**
- * Typed stream subscribers for the Continuum proxy gateway.
+ * Typed stream subscribers for the Fermi v1 gateway.
  *
  * Two transports:
  *
@@ -327,20 +327,20 @@ export function subscribeStateStream(
 
 /**
  * Tail the frontend-tailored state stream. The gateway requires at least
- * one of `owner`, `mangoAccount`, or `market` so it can scope the feed; pass
+ * one of `owner`, `fermiAccount`, or `market` so it can scope the feed; pass
  * the same fields a UI would use to filter.
  */
 export function subscribeFrontendStream(
   opts: CommonOpts & {
     owner?: string;
-    mangoAccount?: string;
+    fermiAccount?: string;
     market?: number | string;
   },
 ): Subscription<SseFrame<HarnessStateEvent>> {
   requireApiKey(opts.apiKey, 'subscribeFrontendStream');
-  if (!opts.owner && !opts.mangoAccount && opts.market === undefined) {
+  if (!opts.owner && !opts.fermiAccount && opts.market === undefined) {
     throw new Error(
-      'subscribeFrontendStream: at least one of owner / mangoAccount / market is required',
+      'subscribeFrontendStream: at least one of owner / fermiAccount / market is required',
     );
   }
   return sseSubscribe<HarnessStateEvent>({
@@ -348,7 +348,7 @@ export function subscribeFrontendStream(
     path: '/state/stream/frontend',
     query: {
       owner: opts.owner,
-      mango_account: opts.mangoAccount,
+      mango_account: opts.fermiAccount,
       market: opts.market !== undefined ? String(opts.market) : undefined,
     },
   });

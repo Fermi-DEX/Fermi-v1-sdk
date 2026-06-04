@@ -1,5 +1,5 @@
 /**
- * Shared auth helpers for the Continuum gateway.
+ * Shared auth helpers for the Fermi v1 gateway.
  *
  * Every SDK client must carry an API key — the proxy uses it for identity,
  * per-key rate limiting, and quota accounting. Keys are UUID v4 strings sent

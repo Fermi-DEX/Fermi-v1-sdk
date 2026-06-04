@@ -40,7 +40,7 @@ export type HarnessLiveness = {
 export type OpenOrderSummary = {
   order_id?: string;
   owner?: string;
-  mango_account?: string;
+  fermi_account?: string;
   market?: string;
   side?: 'bid' | 'ask' | string;
   price_lots?: string;
@@ -68,7 +68,7 @@ export type MarketState = {
 
 export type UserState = {
   owner: string;
-  mango_accounts?: string[];
+  fermi_accounts?: string[];
   open_orders?: OpenOrderSummary[];
   per_market?: Array<Record<string, unknown>>;
   margin_summary?: Record<string, unknown>;
@@ -172,13 +172,13 @@ export type HarnessAirdropResponse = {
 
 export type HarnessAirdropDepositRequest = {
   owner: string;
-  mango_account?: string;
+  fermi_account?: string;
 };
 
 export type HarnessAirdropDepositResponse = {
   ok: boolean;
   owner: string;
-  mango_account?: string;
+  fermi_account?: string;
   group?: string;
   mint?: string;
   ui_amount?: number;
@@ -203,7 +203,7 @@ export type SimulateTradeRequest = {
 
 export type SimulateRequest = {
   owner: PublicKey | string;
-  mango_account?: PublicKey | string;
+  fermiAccount?: PublicKey | string;
   trade: SimulateTradeRequest;
 };
 
@@ -218,7 +218,7 @@ export type SimulateMarginSnapshot = {
 export type SimulateResponse = {
   view: 'optimistic';
   owner: string;
-  mango_account: string;
+  fermi_account: string;
   cached_age_ms: number;
   snapshot_age_ms: number | null;
   optimistic_overlay_applied: boolean;
@@ -250,13 +250,13 @@ export type SimulateResponse = {
 
 export type SimulateWarmRequest = {
   owner: PublicKey | string;
-  mango_account?: PublicKey | string;
+  fermiAccount?: PublicKey | string;
 };
 
 export type SimulateWarmResponse = {
   owner: string;
   group: string;
-  cached_mango_accounts: string[];
+  cached_fermi_accounts: string[];
   cache_ttl_ms: number;
   load_ms: number;
 };
@@ -307,24 +307,24 @@ function withQuery(path: string, query: Record<string, string | undefined>): str
   return `${path}?${params.toString()}`;
 }
 
-export type ContinuumHarnessClientOptions = {
-  /** Continuum proxy gateway REST base URL, e.g. `https://gateway.fermi.xyz`. */
+export type FermiV1StateClientOptions = {
+  /** Fermi v1 gateway REST base URL, e.g. `https://v1.fermi.trade/prod`. */
   gatewayUrl: string;
   /** UUID API key — sent on every request as `x-api-key`. Required. */
   apiKey: string;
   fetchImpl?: typeof fetch;
 };
 
-export class ContinuumHarnessClient {
+export class FermiV1StateClient {
   readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly _fetch: typeof fetch;
 
-  constructor(opts: ContinuumHarnessClientOptions) {
+  constructor(opts: FermiV1StateClientOptions) {
     if (!opts || !opts.gatewayUrl) {
-      throw new Error('ContinuumHarnessClient: gatewayUrl is required');
+      throw new Error('FermiV1StateClient: gatewayUrl is required');
     }
-    this.apiKey = requireApiKey(opts.apiKey, 'ContinuumHarnessClient');
+    this.apiKey = requireApiKey(opts.apiKey, 'FermiV1StateClient');
     this.baseUrl = normalizeBaseUrl(opts.gatewayUrl);
     this._fetch = opts.fetchImpl ?? fetch;
   }
@@ -612,7 +612,7 @@ export class ContinuumHarnessClient {
     return await this.request<Record<string, unknown>>('POST', '/admin/replay', {});
   }
 
-  // Prefetch a user's MangoAccount(s) into the harness's in-process simulate
+  // Prefetch a user's Fermi v1 account(s) into the harness's in-process simulate
   // cache. Pair with simulate() for sub-ms hot-path responses while a UI is
   // tracking a live quantity input. Cache TTL is reported in the response.
   async simulateWarm(
@@ -620,7 +620,7 @@ export class ContinuumHarnessClient {
   ): Promise<SimulateWarmResponse> {
     return await this.request<SimulateWarmResponse>('POST', '/simulate/warm', {
       owner: toBase58(params.owner)!,
-      mango_account: toBase58(params.mango_account),
+      mango_account: toBase58(params.fermiAccount),
     });
   }
 
@@ -630,7 +630,7 @@ export class ContinuumHarnessClient {
   async simulate(params: SimulateRequest): Promise<SimulateResponse> {
     return await this.request<SimulateResponse>('POST', '/simulate', {
       owner: toBase58(params.owner)!,
-      mango_account: toBase58(params.mango_account),
+      mango_account: toBase58(params.fermiAccount),
       trade: params.trade,
     });
   }

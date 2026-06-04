@@ -12,7 +12,7 @@ import {
   PerpOrderType,
   PerpSelfTradeBehavior,
 } from '@blockworks-foundation/mango-v4';
-import { MangoContext, buildCanonicalPerpRemainingAccounts } from './context';
+import { FermiV1Context, buildCanonicalPerpRemainingAccounts } from './context';
 import {
   BigNumberish,
   buildExecutionQueueV5EnqueueDirectWithIntentIxs,
@@ -28,7 +28,7 @@ import {
   UserIntentTargetKind,
 } from './intents';
 import {
-  ContinuumRelayerClient,
+  FermiV1RelayerClient,
   SubmitIntentResponse,
   toRelayerAccountMeta,
 } from './relayerClient';
@@ -107,7 +107,7 @@ function randomU64(): bigint {
   return BigInt(`0x${randomBytes(8).toString('hex')}`);
 }
 
-function executionQueueForMarket(context: MangoContext, marketIndex: number) {
+function executionQueueForMarket(context: FermiV1Context, marketIndex: number) {
   return findExecutionQueueV5Pda(
     context.programId,
     context.group.publicKey,
@@ -143,12 +143,12 @@ function uiPriceToLotsForSide(
  * SDK does not perform it. Direct-submit flows go straight on-chain, so this
  * is now a no-op kept for call-site stability.
  */
-async function maybeRegisterDirectLane(_context: MangoContext): Promise<void> {
+async function maybeRegisterDirectLane(_context: FermiV1Context): Promise<void> {
   return;
 }
 
 async function buildPerpIntentAuth(params: {
-  context: MangoContext;
+  context: FermiV1Context;
   marketIndex: number;
   payload: Uint8Array;
   executionQueue: AccountMeta['pubkey'];
@@ -171,7 +171,7 @@ async function buildPerpIntentAuth(params: {
   );
   const { userIntentMessage } = buildPerpUserIntentMessageV3({
     group: params.context.group.publicKey,
-    mangoAccount: params.context.mangoAccount.publicKey,
+    fermiAccount: params.context.fermiAccount.publicKey,
     userOwner: params.context.user.publicKey,
     marketIndex: params.marketIndex,
     payload: params.payload,
@@ -193,7 +193,7 @@ async function buildPerpIntentAuth(params: {
 }
 
 async function submitPerpIntentDirect(params: {
-  context: MangoContext;
+  context: FermiV1Context;
   marketIndex: number;
   payload: Uint8Array;
   minExecuteSlot?: bigint;
@@ -234,7 +234,7 @@ async function submitPerpIntentDirect(params: {
     expiresAtSlot: params.expiresAtSlot ?? 0n,
     nonce: params.nonce ?? randomU64(),
     userOwner: params.context.user.publicKey,
-    mangoAccount: params.context.mangoAccount.publicKey,
+    fermiAccount: params.context.fermiAccount.publicKey,
     userSigner: { kind: 'keypair', privateKey: params.context.user.secretKey },
   });
 
@@ -255,8 +255,8 @@ async function submitPerpIntentDirect(params: {
 }
 
 export async function submitPerpOrderViaRelayer(
-  relayer: ContinuumRelayerClient,
-  context: MangoContext,
+  relayer: FermiV1RelayerClient,
+  context: FermiV1Context,
   params: SubmitPerpOrderParams,
 ): Promise<SubmitIntentResponse> {
   const clientOrderId = params.clientOrderId ?? randomU64();
@@ -299,7 +299,7 @@ export async function submitPerpOrderViaRelayer(
     min_execute_slot: `${params.minExecuteSlot ?? 0n}`,
     expires_at_slot: `${params.expiresAtSlot ?? 0n}`,
     user_owner: context.user.publicKey.toBase58(),
-    mango_account: context.mangoAccount.publicKey.toBase58(),
+    mango_account: context.fermiAccount.publicKey.toBase58(),
     user_signature: Buffer.from(signed.userSignature),
     base_fee: params.baseFee,
     max_fee_lamports: params.maxFeeLamports ?? params.baseFee,
@@ -311,7 +311,7 @@ export async function submitPerpOrderViaRelayer(
 }
 
 export async function submitPerpOrderDirect(
-  context: MangoContext,
+  context: FermiV1Context,
   params: SubmitPerpOrderParams & DirectSubmitOptions,
 ): Promise<DirectIntentSubmitResult> {
   const clientOrderId = params.clientOrderId ?? randomU64();
@@ -346,8 +346,8 @@ export async function submitPerpOrderDirect(
 }
 
 export async function cancelPerpOrderByClientIdViaRelayer(
-  relayer: ContinuumRelayerClient,
-  context: MangoContext,
+  relayer: FermiV1RelayerClient,
+  context: FermiV1Context,
   params: SubmitPerpCancelByClientIdParams,
 ): Promise<SubmitIntentResponse> {
   const intentClientOrderId = params.intentClientOrderId ?? randomU64();
@@ -374,7 +374,7 @@ export async function cancelPerpOrderByClientIdViaRelayer(
     min_execute_slot: `${params.minExecuteSlot ?? 0n}`,
     expires_at_slot: `${params.expiresAtSlot ?? 0n}`,
     user_owner: context.user.publicKey.toBase58(),
-    mango_account: context.mangoAccount.publicKey.toBase58(),
+    mango_account: context.fermiAccount.publicKey.toBase58(),
     user_signature: Buffer.from(signed.userSignature),
     base_fee: params.baseFee,
     max_fee_lamports: params.maxFeeLamports ?? params.baseFee,
@@ -386,7 +386,7 @@ export async function cancelPerpOrderByClientIdViaRelayer(
 }
 
 export async function cancelPerpOrderByClientIdDirect(
-  context: MangoContext,
+  context: FermiV1Context,
   params: SubmitPerpCancelByClientIdParams & DirectSubmitOptions,
 ): Promise<DirectIntentSubmitResult> {
   const payload = encodePerpCancelOrderByClientOrderIdQueuePayload({
@@ -404,8 +404,8 @@ export async function cancelPerpOrderByClientIdDirect(
 }
 
 export async function cancelAllPerpOrdersViaRelayer(
-  relayer: ContinuumRelayerClient,
-  context: MangoContext,
+  relayer: FermiV1RelayerClient,
+  context: FermiV1Context,
   params: SubmitPerpCancelAllParams,
 ): Promise<SubmitIntentResponse> {
   const intentClientOrderId = params.intentClientOrderId ?? randomU64();
@@ -432,7 +432,7 @@ export async function cancelAllPerpOrdersViaRelayer(
     min_execute_slot: `${params.minExecuteSlot ?? 0n}`,
     expires_at_slot: `${params.expiresAtSlot ?? 0n}`,
     user_owner: context.user.publicKey.toBase58(),
-    mango_account: context.mangoAccount.publicKey.toBase58(),
+    mango_account: context.fermiAccount.publicKey.toBase58(),
     user_signature: Buffer.from(signed.userSignature),
     base_fee: params.baseFee,
     max_fee_lamports: params.maxFeeLamports ?? params.baseFee,
@@ -444,7 +444,7 @@ export async function cancelAllPerpOrdersViaRelayer(
 }
 
 export async function cancelAllPerpOrdersDirect(
-  context: MangoContext,
+  context: FermiV1Context,
   params: SubmitPerpCancelAllParams & DirectSubmitOptions,
 ): Promise<DirectIntentSubmitResult> {
   const payload = encodePerpCancelAllOrdersQueuePayload({

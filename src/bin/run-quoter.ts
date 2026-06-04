@@ -2,9 +2,9 @@
 
 import 'dotenv/config';
 import { PerpOrderSide } from '@blockworks-foundation/mango-v4';
-import { createMangoContext } from '../context';
-import { ContinuumHarnessClient } from '../harness';
-import { ContinuumRelayerClient } from '../relayerClient';
+import { createFermiV1Context } from '../context';
+import { FermiV1StateClient } from '../harness';
+import { FermiV1RelayerClient } from '../relayerClient';
 import { CoinGeckoFairPriceProvider, RelayerPerpQuoterBot } from '../quoter';
 import {
   apiKeyFromEnv,
@@ -33,24 +33,24 @@ async function main(): Promise<void> {
   const cluster = clusterFromEnv();
   const apiKey = apiKeyFromEnv();
   const gatewayUrl = gatewayUrlFromEnv();
-  const context = await createMangoContext({
+  const context = await createFermiV1Context({
     cluster,
     clusterUrl: clusterUrlFromEnv(),
-    deployment: process.env.CONTINUUM_DEPLOYMENT,
+    deployment: process.env.FERMI_DEPLOYMENT,
     gatewayUrl,
     gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
     apiKey,
     userKeypair: requiredEnv('USER_KEYPAIR'),
     groupPk: groupPkFromEnv(),
-    mangoAccountPk: requiredEnv('MANGO_ACCOUNT_PK'),
+    fermiAccountPk: requiredEnv('FERMI_ACCOUNT_PK'),
     executionQueuePk: process.env.EXECUTION_QUEUE_PK,
     programId: process.env.PROGRAM_ID,
   });
-  const relayer = new ContinuumRelayerClient({
+  const relayer = new FermiV1RelayerClient({
     gatewayGrpcAddr: gatewayGrpcAddrFromEnv(),
     apiKey,
   });
-  const harness = new ContinuumHarnessClient({ gatewayUrl, apiKey });
+  const harness = new FermiV1StateClient({ gatewayUrl, apiKey });
   const fairPriceProvider = new CoinGeckoFairPriceProvider(
     process.env.COINGECKO_ASSET_ID || 'solana',
     process.env.COINGECKO_VS_CURRENCY || 'usd',

@@ -1,22 +1,21 @@
-# Continuum SDK
+# Fermi v1 SDK
 
-Self-contained TypeScript SDK for Fermi / Continuum. **Every call goes through
-the Fermi proxy gateway** — there is no longer a direct path to the harness,
-fee service, or relayer. The gateway authenticates every request with a
+Self-contained TypeScript SDK for Fermi v1. **Every call goes through
+the Fermi v1 gateway**. The gateway authenticates every request with a
 mandatory `x-api-key`, applies per-key rate limits, and forwards REST + gRPC +
 SSE + WebSocket traffic to the right upstream.
 
 What you get out of the box:
 
 - gateway-authenticated **REST reads** of market, user, balance, queue,
-  trades, candles, and simulation state via `ContinuumHarnessClient`,
+  trades, candles, and simulation state via `FermiV1StateClient`,
 - gateway-authenticated **gRPC writes** (perp orders + cancels) through the
-  commit/reveal relayer via `ContinuumRelayerClient`,
+  commit/reveal relayer via `FermiV1RelayerClient`,
 - gateway-authenticated **fee status / deposit reports** via
-  `ContinuumFeeClient`,
+  `FermiV1FeeClient`,
 - typed **SSE + WebSocket stream subscribers** with `AsyncIterable` ergonomics
   and gap-free resume,
-- a Mango v4 `MangoClient` bootstrap (`createMangoContext`) for direct
+- a Fermi v1 account bootstrap (`createFermiV1Context`) for direct
   on-chain reads, deposits, withdrawals, and account management — Solana RPC
   stays direct (proxy is not in the Solana RPC path).
 
@@ -29,10 +28,12 @@ The SDK refuses to construct any client without a UUID API key. Get one from
 your Fermi gateway operator, then set:
 
 ```
-FERMI_API_URL=https://gateway.fermi.xyz
-FERMI_API_GRPC_ADDR=gateway.fermi.xyz:50052
 FERMI_API_KEY=00000000-0000-0000-0000-000000000000
 ```
+
+Unless overridden, the SDK uses the production gateway defaults:
+`FERMI_API_URL=https://v1.fermi.trade/prod` and
+`FERMI_API_GRPC_ADDR=v1.fermi.trade:443`.
 
 The key is sent as the `x-api-key` HTTP header (REST + SSE) or gRPC metadata.
 Rate-limit hits — 429 on REST/SSE, `RESOURCE_EXHAUSTED` on gRPC — surface as
@@ -53,36 +54,45 @@ npm run build
 
 ## Environment
 
-Copy `.env.example` and fill in the gateway endpoints + your Mango account
-context:
+Copy `.env.example` and fill in your API key, wallet path, and Fermi v1 account
+selector:
 
 ```bash
 cp .env.example .env
 ```
 
-Required:
+Required user-specific values:
 
-- `FERMI_API_URL`, `FERMI_API_GRPC_ADDR`, `FERMI_API_KEY` — gateway endpoints
-  + UUID key (mandatory)
-- `CLUSTER_URL` — a Solana RPC reachable from your machine (Helius / Triton /
-  your own pool). The Solana public RPC is not viable for Mango IDL fetches.
+- `FERMI_API_KEY` — UUID gateway key (mandatory)
 - `USER_KEYPAIR` — absolute path to a Solana keypair JSON
-- `GROUP_PK` — Mango group public key
-- `MANGO_ACCOUNT_PK` — Mango account to trade with (or `MANGO_ACCOUNT_NUM` to
-  resolve by owner + index)
+- `FERMI_ACCOUNT_PK` — Fermi v1 account to trade with (or `FERMI_ACCOUNT_NUM` to
+  resolve by owner + index when a CLI supports owner/index lookup)
+
+Defaulted mainnet values:
+
+- `FERMI_API_URL=https://v1.fermi.trade/prod`
+- `FERMI_API_GRPC_ADDR=v1.fermi.trade:443`
+- `CLUSTER=mainnet-beta`
+- `CLUSTER_URL=https://api.mainnet-beta.solana.com`
+- `FERMI_DEPLOYMENT=fermi-r6-mainnet`
+- `GROUP_PK=87qUKYQoK1f9gYQjYzw5NcRo7wx6VmfhTGJ7JenoeYAA`
+- `PROGRAM_ID=FRMiKrj2hQGvcZQtSDdiFRZ4cmaTjuc1QVkM2B5ShUvA`
+- `USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
 
 Optional:
 
-- `CONTINUUM_DEPLOYMENT` — pick a named deployment from `src/deployments.ts`
-  (e.g. `fermi-r6-mainnet`). When set, `GROUP_PK` / `PROGRAM_ID` /
-  `USDC_MINT` / `FERMI_API_URL` / `FERMI_API_GRPC_ADDR` fall back to the
-  deployment's values.
-- `PROGRAM_ID` — override the Mango program id
+- `FERMI_DEPLOYMENT` — pick a named deployment from `src/deployments.ts`
+  (defaults to `fermi-r6-mainnet`). `GROUP_PK` / `PROGRAM_ID` / `USDC_MINT` /
+  `FERMI_API_URL` / `FERMI_API_GRPC_ADDR` fall back to the deployment's
+  values.
+- `CLUSTER_URL` — override the default Solana RPC with a provider endpoint
+  such as Helius, Triton, or your own pool.
+- `PROGRAM_ID` — override the Fermi v1 program id
 - `USDC_MINT` — override the USDC mint
 - `RELAYER_MAX_FEE_LAMPORTS` — relayer fee cap in lamports, or `AUTO`
-- `MANGO_ACCOUNT_*` (token / serum3 / perp / perp_oo counts) — slot sizing
-  for `create-mango-account`. **Fermi's Mango v4 fork disables serum3 slots;
-  set `MANGO_ACCOUNT_SERUM3_COUNT=0`.**
+- `FERMI_ACCOUNT_*` (token / serum3 / perp / perp_oo counts) — slot sizing
+  for `create-fermi-account`. **Fermi v1 disables serum3 slots;
+  set `FERMI_ACCOUNT_SERUM3_COUNT=0`.**
 - `COINGECKO_*` — fair-price source tuning for the quoter bot
 
 ## CLI scripts
@@ -91,10 +101,10 @@ Optional:
 # read deployment config from the gateway
 npm run config
 
-# bootstrap a fresh Mango account (signs an on-chain tx)
-npm run create-mango-account
+# bootstrap a fresh Fermi v1 account (signs an on-chain tx)
+npm run create-fermi-account
 
-# move USDC between the wallet ATA and the Mango account
+# move USDC between the wallet ATA and the Fermi v1 account
 USDC_AMOUNT_UI=5 npm run deposit-usdc
 USDC_AMOUNT_UI=5 npm run withdraw-usdc
 
@@ -129,18 +139,18 @@ needs the deployment to have `directPoolsInitialized: true`.
 
 ```ts
 import {
-  ContinuumHarnessClient,
-  ContinuumRelayerClient,
+  FermiV1StateClient,
+  FermiV1RelayerClient,
   PerpOrderSide,
-  createMangoContext,
+  createFermiV1Context,
   submitPerpOrderViaRelayer,
-} from '@fermilabs/continuum-sdk';
+} from '@fermilabs/fermi-v1-sdk';
 
-const gatewayUrl = process.env.FERMI_API_URL!;
-const gatewayGrpcAddr = process.env.FERMI_API_GRPC_ADDR!;
+const gatewayUrl = process.env.FERMI_API_URL ?? 'https://v1.fermi.trade/prod';
+const gatewayGrpcAddr = process.env.FERMI_API_GRPC_ADDR ?? 'v1.fermi.trade:443';
 const apiKey = process.env.FERMI_API_KEY!;
 
-const context = await createMangoContext({
+const context = await createFermiV1Context({
   cluster: 'mainnet-beta',
   clusterUrl: process.env.CLUSTER_URL!,
   deployment: 'fermi-r6-mainnet',
@@ -149,11 +159,11 @@ const context = await createMangoContext({
   apiKey,
   userKeypair: process.env.USER_KEYPAIR!,
   groupPk: process.env.GROUP_PK!,
-  mangoAccountPk: process.env.MANGO_ACCOUNT_PK!,
+  fermiAccountPk: process.env.FERMI_ACCOUNT_PK!,
 });
 
-const harness = new ContinuumHarnessClient({ gatewayUrl, apiKey });
-const relayer = new ContinuumRelayerClient({ gatewayGrpcAddr, apiKey });
+const harness = new FermiV1StateClient({ gatewayUrl, apiKey });
+const relayer = new FermiV1RelayerClient({ gatewayGrpcAddr, apiKey });
 
 const optimistic = await harness.getMarketState(0, 'optimistic');
 
@@ -171,8 +181,8 @@ call — so misconfiguration is caught loudly.
 
 ### Relayed v5 intents
 
-Place-order helpers sign the current `mango-v5-user-intent-v2` digest, which
-binds group, Mango account, owner, target market, payload hash, canonical
+Place-order helpers sign the current `fermi-v1-user-intent-v2` digest, which
+binds group, Fermi v1 account, owner, target market, payload hash, canonical
 account hash, min execute slot, expiry slot, and a u64 `client_order_id`
 replay nonce. The order `clientOrderId` is used as that nonce unless
 `intentClientOrderId` is supplied. Cancel helpers generate a fresh random
@@ -194,7 +204,7 @@ import {
   subscribeStateStream,
   subscribeTicks,
   subscribeV2TradeStream,
-} from '@fermilabs/continuum-sdk';
+} from '@fermilabs/fermi-v1-sdk';
 
 const common = {
   gatewayUrl: process.env.FERMI_API_URL!,
@@ -237,7 +247,7 @@ Available subscribers:
 | Function | Gateway endpoint | Notes |
 |---|---|---|
 | `subscribeStateStream` | `GET /state/stream` | All-market harness events |
-| `subscribeFrontendStream` | `GET /state/stream/frontend` | Requires ≥1 of `owner` / `mangoAccount` / `market` |
+| `subscribeFrontendStream` | `GET /state/stream/frontend` | Requires ≥1 of `owner` / `fermiAccount` / `market` |
 | `subscribeTradeStream` | `GET /state/stream/trades` | Legacy harness trade tail |
 | `subscribeV2TradeStream` | `GET /v2/stream/trades` | Redis-backed, lower latency |
 | `subscribeMarketEvents` | `GET /v2/events/:market` | Accepts `from` / `lastEventId` for resume |
@@ -254,7 +264,7 @@ The relayer keeps a per-wallet SOL fee ledger:
 - SDK helpers accept `maxFeeLamports?: string`; pass `'AUTO'` unless you
   intentionally want a lamport cap.
 - If the relayer replies `please deposit gas`, top up via
-  `ContinuumFeeClient.getStatus()` (returns the deposit address + memo) and
+  `FermiV1FeeClient.getStatus()` (returns the deposit address + memo) and
   `depositFeeCredit()` (signs + sends the SOL transfer and reports it to
   `POST /relayer/fees-deposited`).
 
@@ -264,31 +274,31 @@ sequence.
 
 ## Direct chain access
 
-`createMangoContext` also returns:
+`createFermiV1Context` also returns:
 
-- `context.client` — Mango v4 `MangoClient`
+- `context.client` — Fermi v1 account client
 - `context.group` — loaded `Group`
-- `context.mangoAccount` — loaded `MangoAccount`
+- `context.fermiAccount` — loaded `Fermi v1 account`
 - `context.connection` — Solana `Connection` (uses `CLUSTER_URL`, not the
   gateway)
 
 so you can still:
 
-- inspect full Mango state from chain,
+- inspect full Fermi v1 state from chain,
 - deposit / withdraw funds,
-- create or manage Mango accounts,
+- create or manage Fermi v1 accounts,
 - mix direct on-chain actions with gateway-routed relayer intents.
 
 ## Notes
 
 - Solana RPC is **not** proxied. Use a real RPC provider in `CLUSTER_URL`;
-  the public `api.mainnet-beta.solana.com` will rate-limit Mango's IDL
+  the public `api.mainnet-beta.solana.com` will rate-limit Fermi v1's IDL
   bootstrap.
-- The bundled quoter (`continuum-quoter`) is intentionally minimal; bigger
+- The bundled quoter (`fermi-v1-quoter`) is intentionally minimal; bigger
   bot operators should treat it as a starting point.
-- The bootstrap scripts (`create-mango-account`, `deposit-usdc`,
-  `withdraw-usdc`) are direct Mango client flows; they do not mint test
+- The bootstrap scripts (`create-fermi-account`, `deposit-usdc`,
+  `withdraw-usdc`) are direct Fermi v1 client flows; they do not mint test
   USDC. For local harness funding use `airdropUsdc()` / `airdropDepositUsdc()`
-  on `ContinuumHarnessClient` where the gateway enables them.
+  on `FermiV1StateClient` where the gateway enables them.
 - For a step-by-step walkthrough see [`USAGE.md`](./USAGE.md); for build
   notes see [`docs/BUILD-SETUP.md`](./docs/BUILD-SETUP.md).

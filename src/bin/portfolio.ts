@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
-import { ContinuumHarnessClient, QueueView } from '../harness';
+import { FermiV1StateClient, QueueView } from '../harness';
 import { apiKeyFromEnv, gatewayUrlFromEnv, requiredEnv } from './env';
 
 function fmtUsd(n: unknown): string {
@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   const owner = requiredEnv('OWNER');
   const view = ((process.env.VIEW || 'optimistic') as QueueView);
 
-  const harness = new ContinuumHarnessClient({
+  const harness = new FermiV1StateClient({
     gatewayUrl: gatewayUrlFromEnv(),
     apiKey: apiKeyFromEnv(),
   });
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
 
   console.log(`portfolio for ${owner}  (view=${view})`);
   console.log('');
-  console.log(`mango_accounts: ${(user.mango_accounts || []).join(', ') || '(none)'}`);
+  console.log(`fermi_accounts: ${((user as any).fermi_accounts || (user as any).mango_accounts || []).join(', ') || '(none)'}`);
 
   const ms: any = user.margin_summary || (balances as any)?.margin_summary || {};
   const equity = pickN(ms, 'equity_ui_quote', 'total_equity_ui_quote', 'equity');

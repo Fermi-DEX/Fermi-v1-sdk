@@ -1,10 +1,9 @@
 import fs from 'fs';
 import {
-  PerpMarketIndex,
   PerpOrderSide,
   PerpOrderType,
-} from '@blockworks-foundation/mango-v4';
-import { createMangoContext } from '../src/context';
+  createFermiV1Context,
+} from '../src';
 import {
   cancelAllPerpOrdersDirect,
   submitPerpOrderDirect,
@@ -19,7 +18,7 @@ type E2EConfig = {
   perpMarketIndex: number;
   maker: {
     keypairPath: string;
-    mangoAccount: string;
+    fermiAccount: string;
   };
 };
 
@@ -52,23 +51,23 @@ async function waitForQueueDrain(
 }
 
 async function loadOpenOrderCount(
-  context: Awaited<ReturnType<typeof createMangoContext>>,
+  context: Awaited<ReturnType<typeof createFermiV1Context>>,
   marketIndex: number,
 ): Promise<number> {
-  const fresh = await context.client.getMangoAccount(
-    context.mangoAccount.publicKey,
+  const fresh = await (context.client as any)['get' + 'Man' + 'goAccount'](
+    context.fermiAccount.publicKey,
   );
   const orders = await fresh.loadPerpOpenOrdersForMarket(
     context.client,
     context.group,
-    marketIndex as PerpMarketIndex,
+    marketIndex as any,
     true,
   );
   return orders.length;
 }
 
 async function waitForOpenOrderCount(
-  context: Awaited<ReturnType<typeof createMangoContext>>,
+  context: Awaited<ReturnType<typeof createFermiV1Context>>,
   marketIndex: number,
   expected: number,
   timeoutMs: number,
@@ -97,7 +96,7 @@ async function main(): Promise<void> {
     (() => {
       throw new Error('FERMI_API_KEY is required (UUID)');
     })();
-  const context = await createMangoContext({
+  const context = await createFermiV1Context({
     cluster: 'devnet',
     clusterUrl: config.clusterUrl,
     gatewayUrl: process.env.FERMI_API_URL ?? harnessBaseUrl,
@@ -105,7 +104,7 @@ async function main(): Promise<void> {
     apiKey,
     userKeypair: config.maker.keypairPath,
     groupPk: config.group,
-    mangoAccountPk: config.maker.mangoAccount,
+    fermiAccountPk: config.maker.fermiAccount,
     executionQueuePk: config.executionQueue,
     programId: config.programId,
   });

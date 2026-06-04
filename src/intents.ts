@@ -88,7 +88,7 @@ export type BuildExecutionQueueEnqueueDirectWithIntentParams = {
   minExecuteSlot?: BigNumberish;
   expiresAtSlot?: BigNumberish;
   userOwner: PublicKey;
-  mangoAccount: PublicKey;
+  fermiAccount: PublicKey;
   userSigner: IntentSigner;
 };
 
@@ -123,7 +123,7 @@ export type BuildExecutionQueueV5EnqueueDirectWithIntentParams = {
   expiresAtSlot?: BigNumberish;
   nonce: BigNumberish;
   userOwner: PublicKey;
-  mangoAccount: PublicKey;
+  fermiAccount: PublicKey;
   userSigner: IntentSigner;
 };
 
@@ -447,7 +447,7 @@ export function findExecutionQueueV5DirectPda(
 
 export function buildPerpUserIntentMessageV2(params: {
   group: PublicKey;
-  mangoAccount: PublicKey;
+  fermiAccount: PublicKey;
   userOwner: PublicKey;
   marketIndex: number;
   payload: Uint8Array;
@@ -458,7 +458,7 @@ export function buildPerpUserIntentMessageV2(params: {
     Buffer.concat([
       LEGACY_USER_INTENT_DOMAIN_BYTES,
       Buffer.from(params.group.toBytes()),
-      Buffer.from(params.mangoAccount.toBytes()),
+      Buffer.from(params.fermiAccount.toBytes()),
       Buffer.from(params.userOwner.toBytes()),
       u8(params.kind ?? QueueItemKind.CtmWrapped),
       u8(UserIntentTargetKind.PerpMarket),
@@ -471,7 +471,7 @@ export function buildPerpUserIntentMessageV2(params: {
 
 export function buildPerpUserIntentMessageV3(params: {
   group: PublicKey;
-  mangoAccount: PublicKey;
+  fermiAccount: PublicKey;
   userOwner: PublicKey;
   marketIndex: number;
   payload: Uint8Array;
@@ -489,7 +489,7 @@ export function buildPerpUserIntentMessageV3(params: {
     Buffer.concat([
       USER_INTENT_DOMAIN_BYTES,
       Buffer.from(params.group.toBytes()),
-      Buffer.from(params.mangoAccount.toBytes()),
+      Buffer.from(params.fermiAccount.toBytes()),
       Buffer.from(params.userOwner.toBytes()),
       u8(params.kind ?? QueueItemKind.CtmWrapped),
       u8(UserIntentTargetKind.PerpMarket),
@@ -506,7 +506,7 @@ export function buildPerpUserIntentMessageV3(params: {
 
 export function buildExecutionQueueV5UserNonceReplayHash(params: {
   group: PublicKey;
-  mangoAccount: PublicKey;
+  fermiAccount: PublicKey;
   userOwner: PublicKey;
   kind: number;
   marketIndex: number;
@@ -516,7 +516,7 @@ export function buildExecutionQueueV5UserNonceReplayHash(params: {
     Buffer.concat([
       Buffer.from('mango-v5-user-nonce-v1', 'utf-8'),
       params.group.toBuffer(),
-      params.mangoAccount.toBuffer(),
+      params.fermiAccount.toBuffer(),
       params.userOwner.toBuffer(),
       u8(params.kind),
       u8(UserIntentTargetKind.PerpMarket),
@@ -528,7 +528,7 @@ export function buildExecutionQueueV5UserNonceReplayHash(params: {
 
 export function buildExecutionQueueV5DirectIntentMessage(params: {
   group: PublicKey;
-  mangoAccount: PublicKey;
+  fermiAccount: PublicKey;
   userOwner: PublicKey;
   kind: number;
   marketIndex: number;
@@ -547,7 +547,7 @@ export function buildExecutionQueueV5DirectIntentMessage(params: {
     Buffer.concat([
       Buffer.from('mango-v5-direct-intent-v1', 'utf-8'),
       params.group.toBuffer(),
-      params.mangoAccount.toBuffer(),
+      params.fermiAccount.toBuffer(),
       params.userOwner.toBuffer(),
       u8(params.kind),
       u8(UserIntentTargetKind.PerpMarket),
@@ -634,7 +634,7 @@ export function buildExecutionQueueEnqueueDirectWithIntentIxs(
 } {
   const { payloadHash, userIntentMessage } = buildPerpUserIntentMessageV2({
     group: params.group,
-    mangoAccount: params.mangoAccount,
+    fermiAccount: params.fermiAccount,
     userOwner: params.userOwner,
     marketIndex: params.marketIndex,
     payload: params.payload,
@@ -728,7 +728,7 @@ export function buildExecutionQueueV5EnqueueDirectWithIntentIxs(
   );
   const directIntentMessage = buildExecutionQueueV5DirectIntentMessage({
     group: params.group,
-    mangoAccount: params.mangoAccount,
+    fermiAccount: params.fermiAccount,
     userOwner: params.userOwner,
     kind,
     marketIndex: params.marketIndex,

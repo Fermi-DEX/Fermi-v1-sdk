@@ -6,7 +6,7 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import {
   Group,
   MangoAccount,
-  MangoClient,
+  MangoClient as FermiV1AccountClient,
 } from '@blockworks-foundation/mango-v4';
 import {
   loadKeypair,
@@ -37,7 +37,7 @@ function optionalIntEnv(name: string): number | undefined {
 async function createClientAndGroup(): Promise<{
   user: Keypair;
   connection: Connection;
-  client: MangoClient;
+  client: FermiV1AccountClient;
   group: Group;
   programId: PublicKey;
   deployment?: string;
@@ -58,7 +58,7 @@ async function createClientAndGroup(): Promise<{
     programId: process.env.PROGRAM_ID,
     deployment: deployment?.name,
   });
-  const client = await MangoClient.connect(provider, cluster, programId, {
+  const client = await FermiV1AccountClient.connect(provider, cluster, programId, {
     idsSource: 'get-program-accounts',
   });
   const group = await client.getGroup(groupPk);
@@ -66,7 +66,7 @@ async function createClientAndGroup(): Promise<{
 }
 
 async function resolveCreatedAccount(params: {
-  client: MangoClient;
+  client: FermiV1AccountClient;
   group: Group;
   owner: Keypair;
   accountNumber: number;
@@ -83,19 +83,19 @@ async function resolveCreatedAccount(params: {
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error(
-    `created mango account not found for owner=${params.owner.publicKey.toBase58()} account_num=${
+    `created Fermi v1 account not found for owner=${params.owner.publicKey.toBase58()} account_num=${
       params.accountNumber
     }`,
   );
 }
 
 async function main(): Promise<void> {
-  const accountNumber = optionalIntEnv('MANGO_ACCOUNT_NUM') ?? 0;
-  const tokenCount = optionalIntEnv('MANGO_ACCOUNT_TOKEN_COUNT');
-  const serum3Count = optionalIntEnv('MANGO_ACCOUNT_SERUM3_COUNT');
-  const perpCount = optionalIntEnv('MANGO_ACCOUNT_PERP_COUNT');
-  const perpOoCount = optionalIntEnv('MANGO_ACCOUNT_PERP_OO_COUNT');
-  const accountName = process.env.MANGO_ACCOUNT_NAME || '';
+  const accountNumber = optionalIntEnv('FERMI_ACCOUNT_NUM') ?? 0;
+  const tokenCount = optionalIntEnv('FERMI_ACCOUNT_TOKEN_COUNT');
+  const serum3Count = optionalIntEnv('FERMI_ACCOUNT_SERUM3_COUNT');
+  const perpCount = optionalIntEnv('FERMI_ACCOUNT_PERP_COUNT');
+  const perpOoCount = optionalIntEnv('FERMI_ACCOUNT_PERP_OO_COUNT');
+  const accountName = process.env.FERMI_ACCOUNT_NAME || '';
 
   const { user, client, group, programId, deployment } = await createClientAndGroup();
   const existing = await client.getMangoAccountForOwner(
@@ -105,7 +105,7 @@ async function main(): Promise<void> {
   );
   if (existing) {
     throw new Error(
-      `mango account already exists for owner=${user.publicKey.toBase58()} account_num=${accountNumber}: ${existing.publicKey.toBase58()}`,
+      `Fermi v1 account already exists for owner=${user.publicKey.toBase58()} account_num=${accountNumber}: ${existing.publicKey.toBase58()}`,
     );
   }
 

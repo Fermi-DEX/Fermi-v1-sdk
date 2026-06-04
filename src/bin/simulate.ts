@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
-import { ContinuumHarnessClient, SimulateResponse } from '../harness';
+import { FermiV1StateClient, SimulateResponse } from '../harness';
 import { apiKeyFromEnv, gatewayUrlFromEnv } from './env';
 
 function requiredEnv(name: string): string {
@@ -34,7 +34,7 @@ function fmtRatio(n: number): string {
 
 async function main(): Promise<void> {
   const owner = requiredEnv('SIMULATE_OWNER');
-  const mangoAccount = optionalEnv('SIMULATE_MANGO_ACCOUNT');
+  const fermiAccount = optionalEnv('SIMULATE_FERMI_ACCOUNT');
   const market = optionalEnv('SIMULATE_MARKET') || 'SOL-PERP';
   const side = (optionalEnv('SIMULATE_SIDE') || 'buy').toLowerCase();
   const quantity = Number(requiredEnv('SIMULATE_QUANTITY'));
@@ -49,23 +49,23 @@ async function main(): Promise<void> {
     throw new Error(`SIMULATE_SIDE must be 'buy' or 'sell', got ${side}`);
   }
 
-  const harness = new ContinuumHarnessClient({
+  const harness = new FermiV1StateClient({
     gatewayUrl: gatewayUrlFromEnv(),
     apiKey: apiKeyFromEnv(),
   });
 
   // Warm the cache. /simulate is cache-only; without a warm (or a recent
   // /state/users/<owner> hit) it returns 425.
-  const warm = await harness.simulateWarm({ owner, mango_account: mangoAccount });
+  const warm = await harness.simulateWarm({ owner, fermiAccount });
   console.log(
-    `warm: owner=${warm.owner} accounts=${warm.cached_mango_accounts.length} load=${warm.load_ms}ms ttl=${warm.cache_ttl_ms}ms`,
+    `warm: owner=${warm.owner} accounts=${((warm as any).cached_fermi_accounts ?? (warm as any).cached_mango_accounts ?? []).length} load=${warm.load_ms}ms ttl=${warm.cache_ttl_ms}ms`,
   );
 
   let result: SimulateResponse;
   try {
     result = await harness.simulate({
       owner,
-      mango_account: mangoAccount,
+      fermiAccount,
       trade: {
         kind: 'perp_place_order',
         market,
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
   const t = result.trade;
   console.log('');
   console.log(`trade: ${t.side.toUpperCase()} ${t.quantity_ui} ${t.market} @ ${fmtUsd(t.price_ui)} (${t.price_source}, ${t.order_type})`);
-  console.log(`account: ${result.mango_account}`);
+  console.log(`account: ${(result as any).fermi_account ?? (result as any).mango_account}`);
   console.log(
     `freshness: cached_age=${result.cached_age_ms}ms snapshot_age=${result.snapshot_age_ms}ms overlay=${result.optimistic_overlay_applied} compute=${result.compute_ms}ms`,
   );

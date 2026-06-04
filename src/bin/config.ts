@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
-import { ContinuumHarnessClient } from '../harness';
+import { FermiV1StateClient } from '../harness';
 import { apiKeyFromEnv, gatewayUrlFromEnv } from './env';
 
 async function main(): Promise<void> {
-  const harness = new ContinuumHarnessClient({
+  const harness = new FermiV1StateClient({
     gatewayUrl: gatewayUrlFromEnv(),
     apiKey: apiKeyFromEnv(),
   });

@@ -9,8 +9,8 @@ import {
 import {
   Group,
   MANGO_V4_ID,
-  MangoAccount,
-  MangoClient,
+  MangoAccount as FermiV1Account,
+  MangoClient as FermiV1AccountClient,
   PerpMarketIndex,
   PerpMarket,
   Serum3Orders,
@@ -20,26 +20,26 @@ import {
 import fs from 'fs';
 import path from 'path';
 import {
-  ContinuumDeployment,
-  findContinuumDeploymentByGroup,
-  getContinuumDeployment,
-  requireContinuumDeployment,
+  FermiV1Deployment,
+  findFermiV1DeploymentByGroup,
+  getFermiV1Deployment,
+  requireFermiV1Deployment,
 } from './deployments';
 import { requireApiKey } from './auth';
 
-export type MangoContextConfig = {
+export type FermiV1ContextConfig = {
   cluster?: Cluster;
   clusterUrl?: string;
   deployment?: string;
-  /** Continuum proxy gateway REST base URL. Required. */
+  /** Fermi v1 gateway REST base URL. Required. */
   gatewayUrl?: string;
-  /** Continuum proxy gRPC address `host:port`. Required if using the relayer. */
+  /** Fermi v1 gateway gRPC address `host:port`. Required if using the relayer. */
   gatewayGrpcAddr?: string;
   /** UUID API key — mandatory. Used as `x-api-key` on all SDK calls. */
   apiKey: string;
   userKeypair: string | number[] | Uint8Array;
   groupPk?: string | PublicKey;
-  mangoAccountPk: string | PublicKey;
+  fermiAccountPk: string | PublicKey;
   /**
    * Legacy/default execution queue address. Current v5 helpers derive the
    * per-market queue PDA from `(programId, group, marketIndex)`.
@@ -49,25 +49,25 @@ export type MangoContextConfig = {
   commitment?: Commitment;
 };
 
-export type ResolvedMangoContextConfig = Omit<
-  MangoContextConfig,
-  'cluster' | 'clusterUrl' | 'groupPk' | 'mangoAccountPk' | 'programId'
+export type ResolvedFermiV1ContextConfig = Omit<
+  FermiV1ContextConfig,
+  'cluster' | 'clusterUrl' | 'groupPk' | 'fermiAccountPk' | 'programId'
 > & {
   cluster: Cluster;
   clusterUrl: string;
   groupPk: PublicKey;
-  mangoAccountPk: PublicKey;
+  fermiAccountPk: PublicKey;
   programId: PublicKey;
 };
 
-export type MangoContext = {
-  config: ResolvedMangoContextConfig;
+export type FermiV1Context = {
+  config: ResolvedFermiV1ContextConfig;
   connection: Connection;
   wallet: Wallet;
   user: Keypair;
-  client: MangoClient;
+  client: FermiV1AccountClient;
   group: Group;
-  mangoAccount: MangoAccount;
+  fermiAccount: FermiV1Account;
   executionQueuePk?: PublicKey;
   programId: PublicKey;
   /** Resolved proxy gateway REST base URL. */
@@ -76,7 +76,7 @@ export type MangoContext = {
   gatewayGrpcAddr?: string;
   /** Validated UUID API key. */
   apiKey: string;
-  deployment?: ContinuumDeployment;
+  deployment?: FermiV1Deployment;
 };
 
 export function loadKeypair(rawPathOrJson: string | number[] | Uint8Array): Keypair {
@@ -113,18 +113,18 @@ export function defaultClusterUrl(cluster: Cluster): string {
 export function resolveDeploymentForGroup(
   groupPk: string | PublicKey,
   deploymentName?: string,
-): ContinuumDeployment | undefined {
+): FermiV1Deployment | undefined {
   const group = toPublicKey(groupPk).toBase58();
   if (deploymentName) {
-    const deployment = requireContinuumDeployment(deploymentName);
+    const deployment = requireFermiV1Deployment(deploymentName);
     if (deployment.group !== group) {
       throw new Error(
-        `CONTINUUM_DEPLOYMENT=${deploymentName} is for group ${deployment.group}, not ${group}`,
+        `FERMI_DEPLOYMENT=${deploymentName} is for group ${deployment.group}, not ${group}`,
       );
     }
     return deployment;
   }
-  return findContinuumDeploymentByGroup(group);
+  return findFermiV1DeploymentByGroup(group);
 }
 
 export function resolveProgramIdForGroup(params: {
@@ -159,12 +159,12 @@ export function resolveProgramIdForGroup(params: {
   return MANGO_V4_ID[params.cluster];
 }
 
-export async function createMangoContext(config: MangoContextConfig): Promise<MangoContext> {
-  const apiKey = requireApiKey(config.apiKey, 'createMangoContext');
+export async function createFermiV1Context(config: FermiV1ContextConfig): Promise<FermiV1Context> {
+  const apiKey = requireApiKey(config.apiKey, 'createFermiV1Context');
   const user = loadKeypair(config.userKeypair);
-  const namedDeployment = getContinuumDeployment(config.deployment);
+  const namedDeployment = getFermiV1Deployment(config.deployment);
   if (config.deployment && !namedDeployment) {
-    requireContinuumDeployment(config.deployment);
+    requireFermiV1Deployment(config.deployment);
   }
   const groupPk = config.groupPk
     ? toPublicKey(config.groupPk)
@@ -172,7 +172,7 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
       ? new PublicKey(namedDeployment.group)
       : undefined;
   if (!groupPk) {
-    throw new Error('missing groupPk; set GROUP_PK or CONTINUUM_DEPLOYMENT');
+    throw new Error('missing groupPk; set GROUP_PK or FERMI_DEPLOYMENT');
   }
   const deployment = resolveDeploymentForGroup(groupPk, config.deployment);
   const cluster = config.cluster ?? ((deployment?.cluster ?? 'devnet') as Cluster);
@@ -196,19 +196,19 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
     wallet,
     AnchorProvider.defaultOptions(),
   );
-  const client = await MangoClient.connect(provider, cluster, programId, {
+  const client = await FermiV1AccountClient.connect(provider, cluster, programId, {
     idsSource: 'get-program-accounts',
   });
-  const mangoAccountPk = toPublicKey(config.mangoAccountPk);
-  const mangoAccount = await client.getMangoAccount(mangoAccountPk);
+  const fermiAccountPk = toPublicKey(config.fermiAccountPk);
+  const fermiAccount = await client.getMangoAccount(fermiAccountPk);
   const group = await client.getGroup(groupPk);
-  const resolvedConfig: ResolvedMangoContextConfig = {
+  const resolvedConfig: ResolvedFermiV1ContextConfig = {
     ...config,
     cluster,
     clusterUrl,
     deployment: deployment?.name ?? config.deployment,
     groupPk,
-    mangoAccountPk,
+    fermiAccountPk,
     programId,
     gatewayUrl,
     gatewayGrpcAddr,
@@ -222,7 +222,7 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
     user,
     client,
     group,
-    mangoAccount,
+    fermiAccount,
     executionQueuePk:
       config.executionQueuePk !== undefined
         ? toPublicKey(config.executionQueuePk)
@@ -235,8 +235,9 @@ export async function createMangoContext(config: MangoContextConfig): Promise<Ma
   };
 }
 
+
 export async function buildCanonicalPerpRemainingAccounts(
-  context: MangoContext,
+  context: FermiV1Context,
   perpMarketIndex: number,
 ): Promise<
   Array<{
@@ -250,7 +251,7 @@ export async function buildCanonicalPerpRemainingAccounts(
       perpMarketIndex as PerpMarketIndex,
     );
 
-  const tokenPositionIndices = context.mangoAccount.tokens.map(
+  const tokenPositionIndices = context.fermiAccount.tokens.map(
     (token) => token.tokenIndex,
   );
   const settlementBank = context.group.getFirstBankForPerpSettlement();
@@ -297,7 +298,7 @@ export async function buildCanonicalPerpRemainingAccounts(
       fallbackOracles.push(...fallback);
     }
   }
-  const serumOpenOrders = context.mangoAccount.serum3
+  const serumOpenOrders = context.fermiAccount.serum3
     .filter(
       (serumPosition) =>
         serumPosition.marketIndex !== Serum3Orders.Serum3MarketIndexUnset,
@@ -305,7 +306,7 @@ export async function buildCanonicalPerpRemainingAccounts(
     .map((serumPosition) => serumPosition.openOrders);
   const openbookOpenOrders = (
     (
-      context.mangoAccount as MangoAccount & {
+      context.fermiAccount as FermiV1Account & {
         openbookV2?: Array<{ marketIndex: number; openOrders: PublicKey }>;
       }
     ).openbookV2 ?? []
@@ -326,7 +327,7 @@ export async function buildCanonicalPerpRemainingAccounts(
 
   return [
     { pubkey: context.group.publicKey, isSigner: false, isWritable: false },
-    { pubkey: context.mangoAccount.publicKey, isSigner: false, isWritable: true },
+    { pubkey: context.fermiAccount.publicKey, isSigner: false, isWritable: true },
     { pubkey: context.user.publicKey, isSigner: false, isWritable: false },
     { pubkey: perpMarket.publicKey, isSigner: false, isWritable: true },
     { pubkey: perpMarket.bids, isSigner: false, isWritable: true },

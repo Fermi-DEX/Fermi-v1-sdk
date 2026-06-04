@@ -1,7 +1,7 @@
-# Continuum SDK — Usage Guide
+# Fermi v1 SDK — Usage Guide
 
-A walkthrough for someone connecting a fresh wallet to a running Continuum
-deployment (relayer + harness + Mango program). The README covers the
+A walkthrough for someone connecting a fresh wallet to a running Fermi v1
+deployment (relayer + harness + Fermi v1 program). The README covers the
 high-level surface and library API; this guide covers the operational
 sequence — what to run, in what order, and how to verify each step before
 moving on.
@@ -25,7 +25,7 @@ Required for **everything**:
 | `CLUSTER`      | `devnet`                                 |
 | `CLUSTER_URL`  | `https://api.devnet.solana.com`          |
 | `USER_KEYPAIR` | absolute path to a Solana keypair JSON   |
-| `GROUP_PK`     | Mango group public key                   |
+| `GROUP_PK`     | Fermi v1 group public key                   |
 
 Required for **relayer/harness** flows:
 
@@ -34,10 +34,10 @@ Required for **relayer/harness** flows:
 | `HARNESS_URL`     | `http://harness-host:9191`                      |
 | `RELAYER_ADDR`    | `relayer-host:9190`                             |
 | `FEE_HTTP_URL`    | `http://relayer-host:9193`                      |
-| `MANGO_ACCOUNT_PK`| pubkey of the account you'll trade with         |
+| `FERMI_ACCOUNT_PK`| pubkey of the account you'll trade with         |
 
-If you don't have a Mango account yet, skip ahead to
-[3. Bootstrap a Mango account](#3-bootstrap-a-mango-account) before doing
+If you don't have a Fermi v1 account yet, skip ahead to
+[3. Bootstrap a Fermi v1 account](#3-bootstrap-a-mango-account) before doing
 anything else.
 
 ---
@@ -53,7 +53,7 @@ npm run smoke-check
 Output looks like:
 
 ```
-continuum smoke-check
+fermi-v1 smoke-check
 ---------------------
 PASS  rpc           187ms     slot=308542193
 PASS  harness        24ms     mode=devnet backend=rust-backend markets=3 users=26
@@ -78,17 +78,17 @@ alias `GET /state/bootstrap`.
 
 ---
 
-## 3. Bootstrap a Mango account
+## 3. Bootstrap a Fermi v1 account
 
 For a brand-new wallet, create the account and fund it:
 
 ```bash
-npm run create-mango-account     # prints the created MANGO_ACCOUNT_PK
+npm run create-fermi-account     # prints the created FERMI_ACCOUNT_PK
 npm run deposit-usdc             # deposits USDC_AMOUNT_UI from your ATA
 npm run withdraw-usdc            # withdraws USDC_AMOUNT_UI back to your ATA
 ```
 
-The create script honors `MANGO_ACCOUNT_NUM` and `MANGO_ACCOUNT_NAME` so you
+The create script honors `FERMI_ACCOUNT_NUM` and `FERMI_ACCOUNT_NAME` so you
 can run it multiple times for sub-accounts. The deposit and withdraw scripts
 read `USDC_AMOUNT_UI` and `USDC_MINT` (or fall back to the group's perp settle
 mint).
@@ -110,7 +110,7 @@ Sample output:
 ```
 portfolio for 3Ynr...788J  (view=optimistic)
 
-mango_accounts: 82Td...1hem
+fermi_accounts: 82Td...1hem
 
 margin
 ------
@@ -136,7 +136,7 @@ The harness exposes `/simulate` for projecting a proposed perp order onto
 **optimistic** state — your existing positions, accepted intents, observed
 fills, and others' fills against your resting orders. It is cache-only on the
 hot path; first call to a fresh harness pays one RPC (~200–400 ms) to load
-the MangoAccount, then every subsequent call against the same owner is pure
+the Fermi v1 account, then every subsequent call against the same owner is pure
 local math (~2–10 ms) until the 15 s cache TTL expires.
 
 The packaged script wraps both calls:
@@ -182,9 +182,9 @@ then call `simulate()` on every keystroke. Don't call warm in a tight loop;
 warm is RPC-bound, simulate is not.
 
 ```ts
-import { ContinuumHarnessClient } from '@fermilabs/continuum-sdk';
+import { FermiV1StateClient } from '@fermilabs/fermi-v1-sdk';
 
-const harness = new ContinuumHarnessClient(process.env.HARNESS_URL!);
+const harness = new FermiV1StateClient(process.env.HARNESS_URL!);
 
 // Once on modal open:
 await harness.simulateWarm({ owner });
@@ -243,21 +243,21 @@ Programmatic:
 
 ```ts
 import {
-  ContinuumRelayerClient,
+  FermiV1RelayerClient,
   PerpOrderSide,
-  createMangoContext,
+  createFermiV1Context,
   submitPerpOrderViaRelayer,
   cancelPerpOrderByClientIdViaRelayer,
-} from '@fermilabs/continuum-sdk';
+} from '@fermilabs/fermi-v1-sdk';
 
-const context = await createMangoContext({
+const context = await createFermiV1Context({
   cluster: 'devnet',
   clusterUrl: process.env.CLUSTER_URL!,
   userKeypair: process.env.USER_KEYPAIR!,
   groupPk: process.env.GROUP_PK!,
-  mangoAccountPk: process.env.MANGO_ACCOUNT_PK!,
+  fermiAccountPk: process.env.FERMI_ACCOUNT_PK!,
 });
-const relayer = new ContinuumRelayerClient(process.env.RELAYER_ADDR!);
+const relayer = new FermiV1RelayerClient(process.env.RELAYER_ADDR!);
 
 const clientOrderId = Date.now();
 await submitPerpOrderViaRelayer(relayer, context, {
@@ -286,7 +286,7 @@ DIRECT_ORDER_QUANTITY=0.01 \
 npm run direct-place-order
 ```
 
-The relayer path uses the v5 user-intent envelope (`mango-v5-user-intent-v2`)
+The relayer path uses the v5 user-intent envelope (`fermi-v1-user-intent-v2`)
 and goes through the FIFO queue. The direct path uses
 `execution_queue_v5_enqueue_direct_market` and bypasses the CTM signer, which
 is why it requires more env vars and the executor must be running to
@@ -308,20 +308,20 @@ Top up flow:
 1. Read `deposit_address` from `/fees/status` (or `npm run smoke-check` with
    `USER_OWNER_PK` set).
 2. Send SOL to that address with the canonical memo
-   `fee_credit:v1:<owner>:<mango_account>`.
+   `fee_credit:v1:<owner>:<fermi_account>`.
 3. Call `POST /fees-deposited` to credit the ledger.
 
 The SDK exposes `buildFeeDepositInstructions()` and `depositFeeCredit()` to
 do all three steps in one call:
 
 ```ts
-import { depositFeeCredit } from '@fermilabs/continuum-sdk';
+import { depositFeeCredit } from '@fermilabs/fermi-v1-sdk';
 
 await depositFeeCredit({
   connection: context.connection,
   payer: context.user,
   userOwner: context.user.publicKey,
-  mangoAccount: context.mangoAccount.publicKey,
+  fermiAccount: context.fermiAccount.publicKey,
   feeHttpUrl: process.env.FEE_HTTP_URL!,
   lamports: 100_000_000,   // 0.1 SOL
 });
@@ -341,7 +341,7 @@ Minimal market-making bot that quotes around CoinGecko spot:
 
 ```bash
 BOT_SIDE=bid BOT_SPREAD_BPS=20 BOT_SIZE=0.01 BOT_INTERVAL_MS=2000 \
-  npm exec continuum-quoter
+  npm exec fermi-v1-quoter
 ```
 
 The bundled bot is intentionally minimal — production setups should fork it
