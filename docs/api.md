@@ -1,4 +1,4 @@
-# Fermi v1 State API API Reference
+# Fermi v1 state API reference
 
 This document is the end-user API reference for the local/testnet/mainnet **Fermi v1 State API** service.
 
@@ -16,37 +16,38 @@ The harness provides a single HTTP/SSE surface for:
 
 ## Base URL
 
-Default local URL:
+Use the production gateway for r9 clients:
 
 ```text
-http://127.0.0.1:9091
+https://v1.fermi.trade/prod
 ```
 
-The `fermi-r6-mainnet` smoke deployment uses `http://127.0.0.1:9191` for the
-harness, `127.0.0.1:9190` for relayer gRPC, and `http://127.0.0.1:9193` for
-fee HTTP.
+Send the UUID API key as `x-api-key`. For gRPC, use `v1.fermi.trade:443` with TLS.
+The examples use the gateway URL. Internal bind ports are operator config.
+Local development can use an explicitly configured gateway URL.
 
-Set via:
+See [USAGE.md](../USAGE.md) for the r9 workflow and
+[r9-migration.md](r9-migration.md) for account and transport names.
 
-- `FERMI_V1_STATE_BIND_ADDR`
+### Endpoint inventory
 
-### Exact Localhost Endpoints Requested
-
-- `http://127.0.0.1:9091/state/markets?markets=0,1&view=optimistic|confirmed&depth=10&book=summary|full`
-- `http://127.0.0.1:9091/state/markets/<market>?view=optimistic|confirmed&depth=10`
-- `http://127.0.0.1:9091/state/balances/<owner>?view=optimistic|confirmed`
-- `http://127.0.0.1:9091/state/trades?market=<market>&owner=<owner>&view=optimistic|confirmed&limit=200`
-- `http://127.0.0.1:9091/state/trades/<market>?view=optimistic|confirmed&limit=200`
-- `http://127.0.0.1:9091/state/trades/summary?market=<market>&owner=<owner>&view=optimistic|confirmed`
-- `http://127.0.0.1:9091/state/stream/trades?market=<market>&view=optimistic|confirmed&backfill_n=50`
-- `http://127.0.0.1:9091/state/stream/frontend?owner=<owner>&fermi_account=<account>&market=<market>`
-- `http://127.0.0.1:9091/state/candles/<market>?view=optimistic|confirmed&resolution_sec=60&limit=200`
-- `http://127.0.0.1:9091/airdrop` (POST body with connected wallet pubkey)
-- `http://127.0.0.1:9091/airdrop-deposit` (POST body with connected wallet pubkey)
-- `http://127.0.0.1:9091/config`
-- `http://127.0.0.1:9091/state/bootstrap`
+- `https://v1.fermi.trade/prod/state/markets?markets=0,1&view=optimistic|confirmed&depth=10&book=summary|full`
+- `https://v1.fermi.trade/prod/state/markets/<market>?view=optimistic|confirmed&depth=10`
+- `https://v1.fermi.trade/prod/state/balances/<owner>?view=optimistic|confirmed`
+- `https://v1.fermi.trade/prod/state/trades?market=<market>&owner=<owner>&view=optimistic|confirmed&limit=200`
+- `https://v1.fermi.trade/prod/state/trades/<market>?view=optimistic|confirmed&limit=200`
+- `https://v1.fermi.trade/prod/state/trades/summary?market=<market>&owner=<owner>&view=optimistic|confirmed`
+- `https://v1.fermi.trade/prod/state/stream/trades?market=<market>&view=optimistic|confirmed&backfill_n=50`
+- `https://v1.fermi.trade/prod/state/stream/frontend?owner=<owner>&fermi_account=<account>&market=<market>`
+- `https://v1.fermi.trade/prod/state/candles/<market>?view=optimistic|confirmed&resolution_sec=60&limit=200`
+- `https://v1.fermi.trade/prod/airdrop` (POST body with connected wallet pubkey)
+- `https://v1.fermi.trade/prod/config`
+- `https://v1.fermi.trade/prod/state/bootstrap`
 
 ## Authentication
+
+Public SDK requests require the gateway UUID in `x-api-key`.
+Internal endpoint tokens, described next, are separate operator config.
 
 ### Relay ingest endpoint auth
 
@@ -63,7 +64,7 @@ If no token is configured, ingest is open.
 
 ### Read endpoints
 
-Read endpoints are currently unauthenticated by default.
+Public read requests require `x-api-key` at the gateway. The internal harness uses its operator auth policy.
 
 ### Airdrop endpoint
 
@@ -235,6 +236,8 @@ Response `200`:
 
 ### `POST /airdrop`
 
+This endpoint is for enabled devnet test mints. It is not a mainnet funding method.
+
 Mints local/test USDC from the configured faucet mint authority to a wallet ATA.
 
 Request body:
@@ -272,110 +275,69 @@ Errors:
 - `400` invalid input, amount limit exceeded, or endpoint disabled
 - `500` mint/send runtime error
 
-### `POST /airdrop-deposit`
+### Retired `POST /airdrop-deposit`
 
-Credits `1000 USDC` directly inside Fermi v1 protocol accounting for a user via the on-chain `unsafe_deposit` instruction.
+This endpoint is defunct. Do not use it for account funding.
+For devnet, use `/airdrop` to mint test USDC to the wallet ATA.
+Then create the account and deposit through the normal SDK flow.
+Mainnet wallets must hold real USDC.
 
-This is intentionally unsafe and test-only. It bypasses real token transfer semantics and must never be enabled in production.
+## 2) Client intent submission
 
-Request body:
+Clients submit signed intents through the gRPC gateway at `v1.fermi.trade:443`.
+The relayer constructs and pays for the on-chain commit and reveal transactions.
 
-```json
-{
-  "owner": "FByAc4zWBnKKKnvdXSscFsztYBLgbUtmbVobnMVYxzkC",
-  "fermi_account": "optional-mango-account-pubkey"
-}
-```
+1. The client signs the intent digest and submits the request.
+2. The relayer assigns a sequence and submits a commit transaction.
+3. The reveal worker submits the payload for queue execution.
+4. The client reads confirmed orders or queue outcomes for the result.
 
-Notes:
+Acceptance precedes on-chain execution. The signed-message domain remains
+`mango-v5-user-intent-v2`. The IDL rename does not change this domain.
 
-- `ui_amount` is fixed by harness config (`FERMI_V1_STATE_AIRDROP_DEPOSIT_UI_AMOUNT`, default `1000`).
-- If `fermi_account` is omitted, the first Fermi v1 account for `owner` in the configured group is used.
-
-Response `200`:
-
-```json
-{
-  "ok": true,
-  "owner": "FByAc4zWBnKKKnvdXSscFsztYBLgbUtmbVobnMVYxzkC",
-  "fermi_account": "gddrsZnnddtquJHquhCmqq3bekkW3MN5SBCSJSij79j",
-  "group": "9VYm4QaBhEPEiFfyGxXEDpN7ZTh2muajTDebKrDL4f5k",
-  "mint": "DnTjy48VD6KN2mkXoaHjmgtMxjT1Ub9dc64vxPfiHomA",
-  "ui_amount": 1000,
-  "raw_amount": "1000000000",
-  "unsafe_deposit_tx_signature": "5Qf...abc",
-  "execution_path": "unsafe_deposit"
-}
-```
-
-Errors:
-
-- `400` invalid/missing owner, account mismatch, endpoint disabled, or fixed-amount mismatch
-- `500` runtime failure
-
-`execution_path` values:
-
-- `unsafe_deposit`: new on-chain unsafe instruction path was used.
-- `token_deposit_into_existing_fallback`: node is running an older program binary; harness fell back to mint+deposit-into-existing path.
-
-## 2) Client Intent Submission
-
-Clients submit intents via the **relayer**, not the harness. The relayer
-accepts two transports: gRPC (:9090) and an HTTP bridge (:9092). Both share
-the same payload schema and signing rules.
-
-Since the v5 cutover, every accepted intent flows through the commit-reveal
-pipeline on chain:
-
-1. Client signs a v5 intent and submits it via gRPC/HTTP.
-2. Relayer assigns a monotonic `sequence`, computes `commit_hash`, and lands
-   a `commit_market` tx on chain.
-3. Relayer's in-process reveal worker later submits a `reveal_execute_market`
-   tx with the full payload, which dispatches the underlying perp instruction.
-4. Clients watch `/state/queue/<market>` or the harness SSE stream to
-   observe execution.
-
-Clients **do not** build, sign, or track the commit/reveal transactions —
-the relayer handles that. Clients sign only the current
-`fermi-v1-user-intent-v2` intent digest.
-
-### gRPC `CtmSequencerRelayer.SubmitIntent` — default port `:9090`
+### gRPC `CtmSequencerRelayer.SubmitIntent`
 
 ```proto
 syntax = "proto3";
+
 package ctmsequencer;
 
 message AccountMeta {
   string pubkey = 1;
-  bool   is_signer = 2;
-  bool   is_writable = 3;
+  bool is_signer = 2;
+  bool is_writable = 3;
 }
 
 message SubmitIntentRequest {
-  string group               = 1;   // base58 group pubkey
-  string execution_queue     = 2;   // legacy; empty string accepted under v4 route
-  string market              = 3;   // market_index as decimal string ("0", "1", ...)
-  bytes  payload             = 4;   // framed intent payload (see below)
-  repeated AccountMeta remaining_accounts = 5; // optional; relayer derives when empty
-  uint64 min_execute_slot    = 6;   // 0 = asap
-  uint64 expires_at_slot     = 7;   // 0 = never
-  string user_owner          = 8;   // base58
-  string fermi_account       = 9;   // base58, must exist under the group
-  bytes  user_signature      = 10;  // 64-byte ed25519 signature (see signing)
-  string base_fee            = 11;  // legacy fee-cap alias
-  uint32 intent_version      = 12;  // 2
-  uint32 target_kind         = 13;  // 0 = PerpMarket
-  uint32 target_index        = 14;  // same as `market` for perp
-  uint64 client_order_id     = 15;  // user replay nonce/randomizer
-  string max_fee_lamports    = 16;  // "auto" or integer lamports
+  string group = 1;
+  string execution_queue = 2;
+  string market = 3;
+  bytes payload = 4;
+  repeated AccountMeta remaining_accounts = 5;
+  uint64 min_execute_slot = 6;
+  uint64 expires_at_slot = 7;
+  string user_owner = 8;
+  string mango_account = 9;
+  bytes user_signature = 10;
+  string base_fee = 11;
+  uint32 intent_version = 12;
+  uint32 target_kind = 13;
+  uint32 target_index = 14;
+  // 8-byte user randomizer bound into canonical_user_intent_v3.
+  // 0 is reserved for non-user-signed/admin/sweep traffic; user-signed
+  // intents should set a unique random value per intent.
+  uint64 client_order_id = 15;
+  // Relayer-local fee cap in lamports. Empty or "auto" means the caller
+  // accepts the prevailing quoted fee. base_fee is kept as a legacy alias.
+  string max_fee_lamports = 16;
 }
 
 message SubmitIntentResponse {
-  uint64 sequence               = 1; // v4 sequence assigned to this intent
-  string tx_signature           = 2; // on-chain signature of the commit_market tx
-  bytes  user_intent_message    = 3; // 32-byte canonical_user_intent_message_v3 (echo)
-  bytes  ctm_envelope_message   = 4; // 32-byte placeholder for legacy compatibility
-  double accepted_latency_ms    = 5;
+  uint64 sequence = 1;
+  string tx_signature = 2;
+  bytes user_intent_message = 3;
+  bytes ctm_envelope_message = 4;
+  double accepted_latency_ms = 5;
   double optimistic_processed_latency_ms = 6;
 }
 
@@ -386,7 +348,7 @@ service CtmSequencerRelayer {
 
 ### HTTP bridge `POST /relay/submit-intent` — default port `:9092`
 
-Convenience wrapper over the gRPC call for browser / non-Rust clients.
+Optional operator interface over the gRPC call. Public SDK clients use the gRPC gateway.
 
 Request body:
 
@@ -402,7 +364,7 @@ Request body:
   "min_execute_slot": "0",
   "expires_at_slot": "0",
   "user_owner": "BvUeT57AWhCjAYfBAQrtuHT24BsBa94uiDhPnVp3kTa7",
-  "fermi_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
+  "mango_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
   "user_signature_b64": "<base64 of 64-byte ed25519 signature>",
   "intent_version": 2,
   "target_kind": 0,
@@ -430,7 +392,7 @@ Errors:
 
 ### Helper endpoint: `GET /relay/config?owner=<pubkey>` — port `:9092`
 
-Returns the group/queue/market/fermi_account bundle + execution lanes for
+Returns the group/queue/market/mango_account bundle + execution lanes for
 the given owner so clients can populate the submit request correctly.
 
 ```json
@@ -438,8 +400,8 @@ the given owner so clients can populate the submit request correctly.
   "group": "3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi",
   "execution_queue": "5d9v9RF6EZMA4NXnGPN2ikshTgY4FCcJDoFPkjofRtWa",
   "market": "0",
-  "fermi_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
-  "owner_to_fermi_account": { "BvUeT57A...": "FGxSs4fio..." },
+  "mango_account": "FGxSs4fio65cKzAwuGhBxwHscXq9JXmEMe33mAKZ33Pt",
+  "owner_to_mango_account": { "BvUeT57A...": "FGxSs4fio..." },
   "lanes": [
     {
       "name": "lane-0",
@@ -493,7 +455,7 @@ Clients sign `canonical_user_intent_message_v3`:
 
 ```
 msg_hash = sha256(
-    "fermi-v1-user-intent-v2"    // literal
+    "mango-v5-user-intent-v2"    // literal
     || group                      // 32 bytes
     || fermi_account              // 32 bytes
     || user_owner                 // 32 bytes
@@ -518,26 +480,13 @@ For frontend/wallet compatibility the relayer also accepts a signature over
 the lowercase hex utf-8 representation of `msg_hash` (64 ASCII bytes),
 useful for wallets that only sign UTF-8 messages.
 
-### Deployment Pubkey Bundle
+### Deployment addresses
 
-Do not hardcode old devnet bundles in production clients. Read the active
-group, market, and queue addresses from your operator run config or from the
-gateway config endpoint for the environment you are targeting.
-
-Historical example only:
-
-| Key                     | Value                                                                                                      |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Program ID              | `5KaJhG2AxyFbyNorYLtUUmrKXZMMGGWDQUzetQgS3LqB`                                                             |
-| Group                   | `3FDdg3kMYutwUiChQ3rQryt2ktQyujtvJvHwU9ypPBMi`                                                             |
-| USDC mint               | `3u3nk3mpo49NceRVsTfuZ43H8AwEXPYyNJfi6CLy2iTp`                                                             |
-| USDC decimals           | 6                                                                                                          |
-| Market 0 perp_market    | `G4mWsvmkcbwfDWs6XhcVHmsP9ZSSs1bzVA7ta7e7Znw3`                                                             |
-| Market 1 perp_market    | `H2Ydm35VdTJhMAQFgczQMEkapchG1w3JFovbNxzCWQfa`                                                             |
-| Market \<N\> queue_root | per-market v4 PDA; derive from `["commit-queue-root", group, market_index_le, shard_id=0]` over program_id |
-
-For the full per-market bundle (bids, asks, event_queue, oracle, queue_root,
-queue_page0), see `/relay/config` or the SDK helper `getV4Bundle()`.
+The r9 preset uses program `FRMiX94PWHbndvySq8xyRx185GvPeggUeKaLmZgVdd4`
+and group `2mDvxS4A6bJyR3RjLwvBWeNuFvCAaQ26ss7w1jUChRse`.
+Read `/config` for current market and queue addresses.
+The SDK exports `FERMI_R9_MAINNET` and derives per-market v5 PDAs.
+The previous `getV4Bundle()` workflow does not apply to this SDK.
 
 ## 3) Relay Event Sink (relayer → harness)
 
@@ -1104,16 +1053,17 @@ Common statuses:
 
 ## TypeScript Client Wrapper
 
-A typed client wrapper is available in:
-
-- `ts/client/src/fermi-v1HarnessClient.ts`
+The typed SDK client is `FermiV1StateClient` in `src/harness.ts`.
 
 Example:
 
 ```ts
 import { FermiV1StateClient } from '@fermilabs/fermi-v1-sdk';
 
-const client = new FermiV1StateClient('http://127.0.0.1:9091');
+const client = new FermiV1StateClient({
+  gatewayUrl: 'https://v1.fermi.trade/prod',
+  apiKey: process.env.FERMI_API_KEY!,
+});
 
 const health = await client.healthz();
 const market = await client.getMarketState('0', 'optimistic');
@@ -1129,13 +1079,6 @@ const candles = await client.getCandles({
   view: 'confirmed',
   resolutionSec: 60,
   limit: 200,
-});
-const faucet = await client.airdropUsdc({
-  owner: 'OWNER_PUBKEY',
-  ui_amount: 250,
-});
-const unsafeDeposit = await client.airdropDepositUsdc({
-  owner: 'OWNER_PUBKEY',
 });
 const full = await client.getFullState('confirmed');
 ```
@@ -1176,20 +1119,11 @@ These scripts are part of the operational API workflow:
 ## Curl Quick Reference
 
 ```bash
-curl -s http://127.0.0.1:9091/healthz | jq
-curl -s 'http://127.0.0.1:9091/state/markets/0?view=optimistic' | jq
-curl -s 'http://127.0.0.1:9091/state/users/<owner>?view=confirmed' | jq
-curl -s 'http://127.0.0.1:9091/state/balances/<owner>?view=optimistic' | jq
-curl -s 'http://127.0.0.1:9091/state/orders/0?owner=<owner>&view=optimistic' | jq
-curl -s 'http://127.0.0.1:9091/state/trades/0?view=confirmed&limit=200' | jq
-curl -s 'http://127.0.0.1:9091/state/candles/0?view=confirmed&resolution_sec=60&limit=200' | jq
-curl -s 'http://127.0.0.1:9091/airdrop' \
-  -H 'Content-Type: application/json' \
-  -d '{"owner":"<owner>","ui_amount":250}' | jq
-curl -s 'http://127.0.0.1:9091/airdrop-deposit' \
-  -H 'Content-Type: application/json' \
-  -d '{"owner":"<owner>"}' | jq
-curl -s http://127.0.0.1:9091/state/queue/0 | jq
-curl -s 'http://127.0.0.1:9091/state/full?view=confirmed' | jq
-curl -N http://127.0.0.1:9091/state/stream
+curl -s -H "x-api-key: $FERMI_API_KEY" https://v1.fermi.trade/prod/healthz | jq
+curl -s -H "x-api-key: $FERMI_API_KEY" 'https://v1.fermi.trade/prod/state/markets/0?view=optimistic' | jq
+curl -s -H "x-api-key: $FERMI_API_KEY" 'https://v1.fermi.trade/prod/state/users/<owner>?view=confirmed' | jq
+curl -s -H "x-api-key: $FERMI_API_KEY" 'https://v1.fermi.trade/prod/state/balances/<owner>?view=optimistic' | jq
+curl -s -H "x-api-key: $FERMI_API_KEY" 'https://v1.fermi.trade/prod/state/orders/0?owner=<owner>&view=optimistic' | jq
+curl -s -H "x-api-key: $FERMI_API_KEY" 'https://v1.fermi.trade/prod/state/trades/0?view=confirmed&limit=200' | jq
+curl -s -H "x-api-key: $FERMI_API_KEY" 'https://v1.fermi.trade/prod/state/candles/0?view=confirmed&resolution_sec=60&limit=200' | jq
 ```

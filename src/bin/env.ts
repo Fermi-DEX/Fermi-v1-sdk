@@ -1,18 +1,18 @@
 import { AnchorProvider } from '@coral-xyz/anchor';
 import { Cluster } from '@solana/web3.js';
-import {
-  FermiV1Deployment,
-  requireFermiV1Deployment,
-} from '../deployments';
+import { FermiV1Deployment, requireFermiV1Deployment } from '../deployments';
 
-export const DEFAULT_FERMI_DEPLOYMENT = 'fermi-r6-mainnet';
+export const DEFAULT_FERMI_DEPLOYMENT = 'fermi-r9-mainnet';
 
 export function deploymentFromEnv(): FermiV1Deployment | undefined {
-  const name = process.env.FERMI_DEPLOYMENT || process.env.FERMI_DEPLOYMENT || DEFAULT_FERMI_DEPLOYMENT;
+  const name = process.env.FERMI_DEPLOYMENT || DEFAULT_FERMI_DEPLOYMENT;
   return requireFermiV1Deployment(name);
 }
 
-export function optionalEnv(name: string, fallback?: string): string | undefined {
+export function optionalEnv(
+  name: string,
+  fallback?: string,
+): string | undefined {
   const value = process.env[name];
   return value && value.length > 0 ? value : fallback;
 }
@@ -25,9 +25,13 @@ export function requiredEnv(name: string, fallback?: string): string {
   return value;
 }
 
-export function clusterFromEnv(defaultCluster: Cluster = 'mainnet-beta'): Cluster {
+export function clusterFromEnv(
+  defaultCluster: Cluster = 'mainnet-beta',
+): Cluster {
   const deployment = deploymentFromEnv();
-  return (process.env.CLUSTER || deployment?.cluster || defaultCluster) as Cluster;
+  return (process.env.CLUSTER ||
+    deployment?.cluster ||
+    defaultCluster) as Cluster;
 }
 
 export function clusterUrlFromEnv(): string {
@@ -45,7 +49,11 @@ export function usdcMintFromEnv(): string | undefined {
   return optionalEnv('USDC_MINT', deployment?.usdcMint);
 }
 
-const DEPRECATED_URL_ENVS = ['HARNESS_URL', 'RELAYER_ADDR', 'FEE_HTTP_URL'] as const;
+const DEPRECATED_URL_ENVS = [
+  'HARNESS_URL',
+  'RELAYER_ADDR',
+  'FEE_HTTP_URL',
+] as const;
 let deprecatedWarned = false;
 function warnDeprecatedEnvsOnce(): void {
   if (deprecatedWarned) return;

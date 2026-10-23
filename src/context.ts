@@ -8,15 +8,13 @@ import {
 } from '@solana/web3.js';
 import {
   Group,
-  MANGO_V4_ID,
-  MangoAccount as FermiV1Account,
-  MangoClient as FermiV1AccountClient,
   PerpMarketIndex,
   PerpMarket,
   Serum3Orders,
   TokenIndex,
   TokenPosition,
 } from '@blockworks-foundation/mango-v4';
+import { FermiV1Account, FermiV1AccountClient } from './accountClient';
 import fs from 'fs';
 import path from 'path';
 import {
@@ -79,7 +77,9 @@ export type FermiV1Context = {
   deployment?: FermiV1Deployment;
 };
 
-export function loadKeypair(rawPathOrJson: string | number[] | Uint8Array): Keypair {
+export function loadKeypair(
+  rawPathOrJson: string | number[] | Uint8Array,
+): Keypair {
   if (rawPathOrJson instanceof Uint8Array) {
     return Keypair.fromSecretKey(rawPathOrJson);
   }
@@ -156,10 +156,14 @@ export function resolveProgramIdForGroup(params: {
   if (deployment) {
     return new PublicKey(deployment.programId);
   }
-  return MANGO_V4_ID[params.cluster];
+  throw new Error(
+    'unknown Fermi group; set an explicit programId for this deployment',
+  );
 }
 
-export async function createFermiV1Context(config: FermiV1ContextConfig): Promise<FermiV1Context> {
+export async function createFermiV1Context(
+  config: FermiV1ContextConfig,
+): Promise<FermiV1Context> {
   const apiKey = requireApiKey(config.apiKey, 'createFermiV1Context');
   const user = loadKeypair(config.userKeypair);
   const namedDeployment = getFermiV1Deployment(config.deployment);
@@ -175,7 +179,8 @@ export async function createFermiV1Context(config: FermiV1ContextConfig): Promis
     throw new Error('missing groupPk; set GROUP_PK or FERMI_DEPLOYMENT');
   }
   const deployment = resolveDeploymentForGroup(groupPk, config.deployment);
-  const cluster = config.cluster ?? ((deployment?.cluster ?? 'devnet') as Cluster);
+  const cluster =
+    config.cluster ?? ((deployment?.cluster ?? 'devnet') as Cluster);
   const clusterUrl =
     config.clusterUrl ?? deployment?.rpcUrl ?? defaultClusterUrl(cluster);
   const programId = resolveProgramIdForGroup({
@@ -196,11 +201,19 @@ export async function createFermiV1Context(config: FermiV1ContextConfig): Promis
     wallet,
     AnchorProvider.defaultOptions(),
   );
-  const client = await FermiV1AccountClient.connect(provider, cluster, programId, {
-    idsSource: 'get-program-accounts',
-  });
+  const client = await FermiV1AccountClient.connect(
+    provider,
+    cluster,
+    programId,
+    {
+      idsSource: 'get-program-accounts',
+    },
+  );
   const fermiAccountPk = toPublicKey(config.fermiAccountPk);
-  const fermiAccount = await client.getMangoAccount(fermiAccountPk);
+  const fermiAccount = await client.getFermiAccount(fermiAccountPk);
+  if (!fermiAccount.group.equals(groupPk)) {
+    throw new Error('fermiAccountPk belongs to a different group');
+  }
   const group = await client.getGroup(groupPk);
   const resolvedConfig: ResolvedFermiV1ContextConfig = {
     ...config,
@@ -235,7 +248,6 @@ export async function createFermiV1Context(config: FermiV1ContextConfig): Promis
   };
 }
 
-
 export async function buildCanonicalPerpRemainingAccounts(
   context: FermiV1Context,
   perpMarketIndex: number,
@@ -246,10 +258,9 @@ export async function buildCanonicalPerpRemainingAccounts(
     isWritable: boolean;
   }>
 > {
-  const perpMarket: PerpMarket =
-    context.group.getPerpMarketByMarketIndex(
-      perpMarketIndex as PerpMarketIndex,
-    );
+  const perpMarket: PerpMarket = context.group.getPerpMarketByMarketIndex(
+    perpMarketIndex as PerpMarketIndex,
+  );
 
   const tokenPositionIndices = context.fermiAccount.tokens.map(
     (token) => token.tokenIndex,
@@ -267,7 +278,7 @@ export async function buildCanonicalPerpRemainingAccounts(
   }
   if (!tokenPositionIndices.includes(settlementBank.tokenIndex)) {
     throw new Error(
-      'all Mango token positions are occupied; cannot build canonical perp execution-queue accounts',
+      'all Fermi token positions are occupied; cannot build canonical perp execution-queue accounts',
     );
   }
 
@@ -327,7 +338,11 @@ export async function buildCanonicalPerpRemainingAccounts(
 
   return [
     { pubkey: context.group.publicKey, isSigner: false, isWritable: false },
-    { pubkey: context.fermiAccount.publicKey, isSigner: false, isWritable: true },
+    {
+      pubkey: context.fermiAccount.publicKey,
+      isSigner: false,
+      isWritable: true,
+    },
     { pubkey: context.user.publicKey, isSigner: false, isWritable: false },
     { pubkey: perpMarket.publicKey, isSigner: false, isWritable: true },
     { pubkey: perpMarket.bids, isSigner: false, isWritable: true },

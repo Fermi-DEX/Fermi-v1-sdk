@@ -1,51 +1,38 @@
-# Direct Orders
+# Direct orders
 
-This folder contains runnable direct-enqueue order scripts built on top of the
-SDK's v5 direct market path.
+`place.ts` uses `execution_queue_v5_enqueue_direct_market` on Solana RPC.
+The r9 mainnet direct pools were absent at the 2026-10-23 check.
+The CLI rejects the r9 preset. Use `npm run place-order` for mainnet relayed orders.
 
-Current entrypoint:
+For a prepared custom deployment, supply the program, group, RPC URL, wallet,
+and Fermi account. The direct pool must exist before order submission.
+The context also requires a gateway UUID key.
 
-- `place.ts`: submit a perp order directly on-chain via
-  `execution_queue_v5_enqueue_direct_market`
+| Variable | Purpose |
+| --- | --- |
+| `CLUSTER`, `CLUSTER_URL` | Solana cluster and RPC |
+| `PROGRAM_ID`, `GROUP_PK` | Explicit deployment identity |
+| `USER_KEYPAIR`, `FERMI_ACCOUNT_PK` | Owner wallet and r9-format account |
+| `FERMI_API_KEY` | UUID for context construction |
+| `DIRECT_ORDER_MARKET_INDEX` | Market index |
+| `DIRECT_ORDER_SIDE` | `bid` or `ask` |
+| `DIRECT_ORDER_PRICE`, `DIRECT_ORDER_QUANTITY` | UI price and base size |
+| `DIRECT_ORDER_TYPE` | `limit`, `ioc`, `postOnly`, `market`, or `postOnlySlide` |
+| `DIRECT_ORDER_REDUCE_ONLY` | Boolean |
+| `DIRECT_ORDER_EXPIRES_AT_SLOT` | Absolute expiry slot, default current slot + 20 |
+| `DIRECT_ORDER_NONCE` | Optional unsigned 64-bit nonce |
 
-Required base env:
+A direct intent requires a non-zero expiry on r9.
+The high-level helper supplies current slot + 20 by default.
+The low-level builder requires the caller to supply the expiry.
+A longer expiry can exceed the program's replay window.
 
-- `CLUSTER`
-- `CLUSTER_URL`
-- `USER_KEYPAIR`
-- `GROUP_PK`
-- `FERMI_ACCOUNT_PK`
-
-Optional:
-
-- `HARNESS_URL` for lane registration and local optimistic tracking
-- `PROGRAM_ID` to override the Fermi v1 program id
-- `EXECUTION_QUEUE_PK` for legacy/manual compatibility; the v5 direct script derives the per-market queue PDA
-
-Place-order env:
-
-- `DIRECT_ORDER_MARKET_INDEX` or `PERP_MARKET_INDEX`
-- `DIRECT_ORDER_SIDE=bid|ask`
-- `DIRECT_ORDER_PRICE=<ui price>`
-- `DIRECT_ORDER_QUANTITY=<ui base size>`
-- `DIRECT_ORDER_MAX_QUOTE_QUANTITY=<optional ui quote cap>`
-- `DIRECT_ORDER_CLIENT_ORDER_ID=<optional u64>`
-- `DIRECT_ORDER_TYPE=limit|ioc|postOnly|market|postOnlySlide`
-- `DIRECT_ORDER_SELF_TRADE_BEHAVIOR=decrementTake|cancelProvide|abortTransaction`
-- `DIRECT_ORDER_REDUCE_ONLY=true|false`
-- `DIRECT_ORDER_EXPIRY_TIMESTAMP=<unix seconds>`
-- `DIRECT_ORDER_MATCH_LIMIT=<u8>`
-- `DIRECT_ORDER_EXPIRES_AT_SLOT=<optional slot>`
-- `DIRECT_ORDER_NONCE=<optional u64>`
-
-Run with:
+The helpers derive the per-market queue and direct-pool PDAs.
+`EXECUTION_QUEUE_PK` does not select a v5 market queue.
+The direct path does not register a lane through the gateway.
 
 ```bash
 npm run direct-place-order
 ```
 
-or
-
-```bash
-npx fermi-v1-direct-place-order
-```
+This command signs and sends an on-chain transaction.

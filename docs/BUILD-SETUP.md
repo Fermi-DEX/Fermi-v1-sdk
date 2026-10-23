@@ -1,77 +1,54 @@
-# Build And Setup Notes
+# Build and package
 
-This SDK is meant to run independently from another machine, but the fastest path to a working environment still depends on the existing Fermi v1 and Fermi v1 build notes already in this workspace.
+This repository builds independently. It needs Node.js 22 or later and npm.
+It does not need Rust, Anchor CLI, a validator, or a sibling `fermi-v1` checkout.
 
-Rather than duplicating those instructions and letting them drift, keep these source documents nearby during setup:
-
-- Fermi v1 TypeScript and workspace overview:
-  - [`../../mng-v4/README.md`](../../mng-v4/README.md)
-- Fermi v1 build and platform gotchas:
-  - [`../../mng-v4/build-guide.md`](../../mng-v4/build-guide.md)
-  - [`../../mng-v4/FAQ-DEV.md`](../../mng-v4/FAQ-DEV.md)
-- Fermi v1 state API API reference:
-  - [`../../mng-v4/api.md`](../../mng-v4/api.md)
-- Professional deployment and service layout:
-  - [`../../mng-v4/development.md`](../../mng-v4/development.md)
-- Devnet deployment and runtime scripts:
-  - [`../../deploy.sh`](../../deploy.sh)
-  - [`../../scripts/run_devnet_harness.sh`](../../scripts/run_devnet_harness.sh)
-  - [`../../scripts/run_devnet_relayer.sh`](../../scripts/run_devnet_relayer.sh)
-  - [`../../scripts/run_devnet_quoter.sh`](../../scripts/run_devnet_quoter.sh)
-
-## Suggested Fast Path
-
-For a clean setup, treat the repo docs above as the source of truth for:
-
-- how to build `fermi-v1-core`,
-- how to build or validate the Rust relayer,
-- how the harness and relayer ports are expected to be exposed,
-- which env vars are already assumed by the running stack.
-
-Then use this SDK only for the remote-client layer:
-
-- connect to Solana RPC,
-- connect to relayer gRPC,
-- connect to harness HTTP,
-- place/cancel quotes,
-- read optimistic or confirmed state,
-- perform direct Fermi v1 client actions from the same machine.
-
-## Validation
-
-Use the package validation script before handing the SDK to another operator:
+## Install
 
 ```bash
 npm install
 npm run validate
 ```
 
-`validate` runs TypeScript type checking, builds `dist/`, and performs an
-`npm pack --dry-run` so the packaged files are visible before distribution.
-`dist/` is generated locally by the package `prepare` hook and is intentionally
-not committed.
+The `prepare` hook builds `dist/`. The repository does not commit this directory.
+The package pins Mango account models to `0.33.9` and Anchor to `0.29.0`.
+The SDK constructs its own Anchor program with the bundled r9 IDL.
 
-## Dependency Audit Notes
+## Checks
 
-`npm audit --omit=dev` currently reports transitive issues inherited through the
-published Fermi v1/Solana client stack, mainly `@solana/web3.js` dependencies on
-`uuid` plus `@solana/spl-token` / `@solana/buffer-layout-utils` dependencies on
-`bigint-buffer`. As of this SDK update, the latest compatible
-`@solana/web3.js` and `bigint-buffer` package versions still trigger the audit,
-and npm's suggested forced fix would replace `@fermilabs/fermi-v1-sdk`
-with an incompatible package version.
+| Command | Purpose |
+| --- | --- |
+| `npm run typecheck` | Check TypeScript without output files |
+| `npm run build` | Generate JavaScript, declarations, and the bundled IDL |
+| `npm test` | Build and run offline r9 regression tests |
+| `npm run validate` | Check types, run tests, and inspect package contents |
+| `npm pack` | Create an installable package archive |
 
-Do not run `npm audit fix --force` for this SDK without revalidating all Fermi v1
-client behavior. Run the SDK as a trading-key process: keep the host isolated,
-avoid exposing it to untrusted HTTP/gRPC inputs beyond the intended relayer and
-harness endpoints, and revisit the audit once upstream Solana/Fermi v1 packages
-ship patched dependency ranges.
+The tests decode public mainnet snapshots and construct transactions offline.
+They cover r9 account identity, PDA derivation, filters, creation, margin
+instructions, event names, deployment mismatches, and direct-intent expiry.
+They do not submit transactions or require a wallet file.
 
-## Why This Matters
+The package must contain `dist/idl/fermi_v1.json`, TypeScript declarations,
+`proto/ctm_sequencer.proto`, documentation, examples, and the r9 environment template.
 
-The expensive setup time is still mostly in the upstream `fermi-v1-core` and relayer build path. Keeping the current docs intact and linked here avoids re-discovering known fixes like:
+## Configure a client
 
-- Rust or Solana version mismatches,
-- stale or unusable `mango_v4.so` artifacts,
-- relayer build hangs or release/debug binary confusion,
-- service port and runtime-env mismatches between harness, relayer, and clients.
+```bash
+cp .env.fermi-r9-mainnet.example .env
+```
+
+Set the wallet file and gateway API key in `.env`.
+Use the [usage guide](../USAGE.md) for the account workflow.
+The [migration guide](r9-migration.md) records the IDL source and compatibility rules.
+
+## Update the IDL
+
+The current snapshot comes from the r9 source commit
+`ea0a609c0283b1f9c475d269667ce5ccd049b216`.
+The JSON and TypeScript type describe the same schema.
+The source snapshot predates v5 queue instructions. The SDK uses explicit v5 wire encoders.
+
+For a future release, use the deployment's source and IDL together.
+Do not replace the Fermi IDL with the upstream Mango IDL.
+Run the r9 regression suite after any schema or account-model change.

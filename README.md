@@ -1,304 +1,200 @@
 # Fermi v1 SDK
 
-Self-contained TypeScript SDK for Fermi v1. **Every call goes through
-the Fermi v1 gateway**. The gateway authenticates every request with a
-mandatory `x-api-key`, applies per-key rate limits, and forwards REST + gRPC +
-SSE + WebSocket traffic to the right upstream.
+TypeScript SDK for the **r9 mainnet deployment**. It supports account creation,
+USDC deposits and withdrawals, relayed perp orders, state reads, fees, and streams.
 
-What you get out of the box:
-
-- gateway-authenticated **REST reads** of market, user, balance, queue,
-  trades, candles, and simulation state via `FermiV1StateClient`,
-- gateway-authenticated **gRPC writes** (perp orders + cancels) through the
-  commit/reveal relayer via `FermiV1RelayerClient`,
-- gateway-authenticated **fee status / deposit reports** via
-  `FermiV1FeeClient`,
-- typed **SSE + WebSocket stream subscribers** with `AsyncIterable` ergonomics
-  and gap-free resume,
-- a Fermi v1 account bootstrap (`createFermiV1Context`) for direct
-  on-chain reads, deposits, withdrawals, and account management — Solana RPC
-  stays direct (proxy is not in the Solana RPC path).
-
-For the full request/response inventory the gateway exposes, see
-[docs/api.md](./docs/api.md).
-
-## Authentication
-
-The SDK refuses to construct any client without a UUID API key. Get one from
-your Fermi gateway operator, then set:
-
-```
-FERMI_API_KEY=00000000-0000-0000-0000-000000000000
-```
-
-Unless overridden, the SDK uses the production gateway defaults:
-`FERMI_API_URL=https://v1.fermi.trade/prod` and
-`FERMI_API_GRPC_ADDR=v1.fermi.trade:443`.
-
-The key is sent as the `x-api-key` HTTP header (REST + SSE) or gRPC metadata.
-Rate-limit hits — 429 on REST/SSE, `RESOURCE_EXHAUSTED` on gRPC — surface as
-a typed `RateLimitedError` carrying `limit` / `remaining` / `retryAfter`, so
-loops can back off cleanly.
-
-Legacy env vars (`HARNESS_URL`, `RELAYER_ADDR`, `FEE_HTTP_URL`) are no longer
-used; if present they emit a one-time warning and are ignored.
+The SDK bundles the r9 IDL. All account helpers use its `FermiAccount` identity.
+The upstream Mango package supplies account models and transaction helpers only.
+No sibling repository or private GitHub dependency is required.
 
 ## Install
 
+Use Node.js 22 or later.
+
 ```bash
 npm install
-npm run build
+npm run validate
+cp .env.fermi-r9-mainnet.example .env
 ```
 
-`prepare` runs the build on install. `dist/` is not committed.
+The install hook builds `dist/`. The package version is `0.2.0`.
 
-## Environment
+## Mainnet config
 
-Copy `.env.example` and fill in your API key, wallet path, and Fermi v1 account
-selector:
+| Item | r9 value |
+| --- | --- |
+| Deployment | `fermi-r9-mainnet` |
+| Program | `FRMiX94PWHbndvySq8xyRx185GvPeggUeKaLmZgVdd4` |
+| Group | `2mDvxS4A6bJyR3RjLwvBWeNuFvCAaQ26ss7w1jUChRse` |
+| Markets | `0`: SOL-PERP, `1`: ETH-PERP, `2`: BTC-PERP |
+| REST gateway | `https://v1.fermi.trade/prod` |
+| gRPC gateway | `v1.fermi.trade:443` (TLS) |
 
-```bash
-cp .env.example .env
+The deployment registry matches the production `/config` response on 2026-10-23.
+Use `npm run config` for current fees, market parameters, and addresses.
+The registry contains addresses and lot sizes, not fixed trading fees.
+
+Set these values in `.env`:
+
+```dotenv
+FERMI_DEPLOYMENT=fermi-r9-mainnet
+FERMI_API_KEY=<UUID from the gateway operator>
+USER_KEYPAIR=/absolute/path/to/user-keypair.json
+FERMI_ACCOUNT_PK=<r9 account public key, after account creation>
 ```
 
-Required user-specific values:
+`CLUSTER_URL` can select your own mainnet RPC provider. The public RPC can limit
+requests during account and group reads. `FERMI_ACCOUNT_NUM=0` selects the account
+number for creation and owner lookup in the deposit and withdrawal CLIs.
 
-- `FERMI_API_KEY` — UUID gateway key (mandatory)
-- `USER_KEYPAIR` — absolute path to a Solana keypair JSON
-- `FERMI_ACCOUNT_PK` — Fermi v1 account to trade with (or `FERMI_ACCOUNT_NUM` to
-  resolve by owner + index when a CLI supports owner/index lookup)
+REST, gRPC, and stream clients require a UUID API key. They send it as `x-api-key`.
+Solana RPC calls use `CLUSTER_URL` directly. `FermiV1AccountClient` does not require
+a gateway key. `createFermiV1Context` requires one for the combined trading flow.
 
-Defaulted mainnet values:
+The SDK ignores `HARNESS_URL`, `RELAYER_ADDR`, and `FEE_HTTP_URL`.
+Use `FERMI_API_URL`, `FERMI_API_GRPC_ADDR`, and `FERMI_API_KEY` instead.
 
-- `FERMI_API_URL=https://v1.fermi.trade/prod`
-- `FERMI_API_GRPC_ADDR=v1.fermi.trade:443`
-- `CLUSTER=mainnet-beta`
-- `CLUSTER_URL=https://api.mainnet-beta.solana.com`
-- `FERMI_DEPLOYMENT=fermi-r6-mainnet`
-- `GROUP_PK=87qUKYQoK1f9gYQjYzw5NcRo7wx6VmfhTGJ7JenoeYAA`
-- `PROGRAM_ID=FRMiKrj2hQGvcZQtSDdiFRZ4cmaTjuc1QVkM2B5ShUvA`
-- `USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
-
-Optional:
-
-- `FERMI_DEPLOYMENT` — pick a named deployment from `src/deployments.ts`
-  (defaults to `fermi-r6-mainnet`). `GROUP_PK` / `PROGRAM_ID` / `USDC_MINT` /
-  `FERMI_API_URL` / `FERMI_API_GRPC_ADDR` fall back to the deployment's
-  values.
-- `CLUSTER_URL` — override the default Solana RPC with a provider endpoint
-  such as Helius, Triton, or your own pool.
-- `PROGRAM_ID` — override the Fermi v1 program id
-- `USDC_MINT` — override the USDC mint
-- `RELAYER_MAX_FEE_LAMPORTS` — relayer fee cap in lamports, or `AUTO`
-- `FERMI_ACCOUNT_*` (token / serum3 / perp / perp_oo counts) — slot sizing
-  for `create-fermi-account`. **Fermi v1 disables serum3 slots;
-  set `FERMI_ACCOUNT_SERUM3_COUNT=0`.**
-- `COINGECKO_*` — fair-price source tuning for the quoter bot
-
-## CLI scripts
+## CLI workflow
 
 ```bash
-# read deployment config from the gateway
+# Read service config and check reachability.
 npm run config
+npm run smoke-check
 
-# bootstrap a fresh Fermi v1 account (signs an on-chain tx)
+# Create an r9 account. This sends an on-chain transaction.
 npm run create-fermi-account
 
-# move USDC between the wallet ATA and the Fermi v1 account
+# Copy fermi_account from the output into FERMI_ACCOUNT_PK in .env.
+# Deposit real USDC from the wallet ATA. This sends an on-chain transaction.
 USDC_AMOUNT_UI=5 npm run deposit-usdc
-USDC_AMOUNT_UI=5 npm run withdraw-usdc
 
-# read account state through the gateway / directly from chain
-OWNER=<wallet-pubkey> npm run portfolio
+# Read the account through the gateway or Solana RPC.
+OWNER=<wallet-public-key> npm run portfolio
 npm run onchain-portfolio
 
-# project a proposed trade onto current state without sending
-SIMULATE_OWNER=<wallet> SIMULATE_SIDE=buy SIMULATE_QUANTITY=0.1 \
-  SIMULATE_PRICE=80 npm run simulate
+# Submit a real order through the relayer.
+PERP_ORDER_MARKET_INDEX=0 PERP_ORDER_SIDE=bid PERP_ORDER_PRICE=80 \
+  PERP_ORDER_QUANTITY=0.01 PERP_ORDER_TYPE=postOnly npm run place-order
 
-# submit a perp order through the relayer (gRPC via the gateway)
-PERP_ORDER_SIDE=bid PERP_ORDER_PRICE=80 PERP_ORDER_QUANTITY=0.01 \
-  PERP_ORDER_TYPE=postOnly npm run place-order
-
-# end-to-end reachability check (REST + gRPC + fees)
-npm run smoke-check
+# Withdraw real USDC, subject to account health.
+USDC_AMOUNT_UI=5 npm run withdraw-usdc
 ```
 
-A direct-enqueue order flow that bypasses the relayer and signs the Solana tx
-locally lives at `src/bin/direct-orders`:
+Account creation defaults to 1 token slot, 0 Serum3 slots, 3 perp slots, and
+32 perp open-order slots. r9 disables Serum3 slots. An explicit non-zero
+`FERMI_ACCOUNT_SERUM3_COUNT` causes an error.
 
-```bash
-npm run direct-place-order
-```
+The CLIs return `fermi_account`. They also retain `mango_account` as an alias.
 
-This path uses the gateway only for the optional pre-warm read; the actual
-intent is enqueued on-chain via `execution_queue_v5_enqueue_direct_market` and
-needs the deployment to have `directPoolsInitialized: true`.
-
-## Programmatic usage
+## Programmatic trading
 
 ```ts
 import {
-  FermiV1StateClient,
   FermiV1RelayerClient,
+  FermiV1StateClient,
   PerpOrderSide,
+  PerpOrderType,
+  cancelAllPerpOrdersViaRelayer,
   createFermiV1Context,
   submitPerpOrderViaRelayer,
 } from '@fermilabs/fermi-v1-sdk';
 
-const gatewayUrl = process.env.FERMI_API_URL ?? 'https://v1.fermi.trade/prod';
-const gatewayGrpcAddr = process.env.FERMI_API_GRPC_ADDR ?? 'v1.fermi.trade:443';
 const apiKey = process.env.FERMI_API_KEY!;
-
+const gatewayUrl = 'https://v1.fermi.trade/prod';
+const gatewayGrpcAddr = 'v1.fermi.trade:443';
 const context = await createFermiV1Context({
-  cluster: 'mainnet-beta',
-  clusterUrl: process.env.CLUSTER_URL!,
-  deployment: 'fermi-r6-mainnet',
-  gatewayUrl,
-  gatewayGrpcAddr,
+  deployment: 'fermi-r9-mainnet',
+  clusterUrl: process.env.CLUSTER_URL,
   apiKey,
   userKeypair: process.env.USER_KEYPAIR!,
-  groupPk: process.env.GROUP_PK!,
   fermiAccountPk: process.env.FERMI_ACCOUNT_PK!,
 });
-
-const harness = new FermiV1StateClient({ gatewayUrl, apiKey });
+const state = new FermiV1StateClient({ gatewayUrl, apiKey });
 const relayer = new FermiV1RelayerClient({ gatewayGrpcAddr, apiKey });
 
-const optimistic = await harness.getMarketState(0, 'optimistic');
-
-await submitPerpOrderViaRelayer(relayer, context, {
-  marketIndex: 0,
-  side: PerpOrderSide.bid,
-  price: 80,
-  quantity: 0.01,
-  maxFeeLamports: 'AUTO',
-});
+try {
+  console.log(await state.getMarketState(0, 'confirmed'));
+  const accepted = await submitPerpOrderViaRelayer(relayer, context, {
+    marketIndex: 0,
+    side: PerpOrderSide.bid,
+    price: 80,
+    quantity: 0.01,
+    orderType: PerpOrderType.postOnly,
+    maxFeeLamports: 'AUTO',
+  });
+  console.log(accepted.sequence);
+  // Acceptance precedes chain execution. Read confirmed orders to see the result.
+  await cancelAllPerpOrdersViaRelayer(relayer, context, { marketIndex: 0 });
+} finally {
+  relayer.close();
+}
 ```
 
-A missing or non-UUID `apiKey` throws at construction — before any network
-call — so misconfiguration is caught loudly.
-
-### Relayed v5 intents
-
-Place-order helpers sign the current `fermi-v1-user-intent-v2` digest, which
-binds group, Fermi v1 account, owner, target market, payload hash, canonical
-account hash, min execute slot, expiry slot, and a u64 `client_order_id`
-replay nonce. The order `clientOrderId` is used as that nonce unless
-`intentClientOrderId` is supplied. Cancel helpers generate a fresh random
-nonce by default.
-
-For production-like FIFO behaviour pass `expiryTimestamp: 0`; nonzero
-expiries can be delayed behind earlier queue work.
-
-## Streams
-
-`src/streams.ts` exposes typed `AsyncIterable` subscribers for every live
-channel the gateway publishes. Each one carries `x-api-key`, surfaces 429 as
-`RateLimitedError`, and ends cleanly on `signal.abort()` or `.close()`.
+## Account client and IDL
 
 ```ts
+import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
+import { Connection, PublicKey } from '@solana/web3.js';
 import {
-  snapshotAndStreamMarket,
-  subscribeMarketEvents,
-  subscribeStateStream,
-  subscribeTicks,
-  subscribeV2TradeStream,
+  FERMI_R9_MAINNET,
+  FermiV1AccountClient,
+  findFermiV1AccountPda,
+  loadKeypair,
 } from '@fermilabs/fermi-v1-sdk';
 
-const common = {
-  gatewayUrl: process.env.FERMI_API_URL!,
-  apiKey: process.env.FERMI_API_KEY!,
-};
+const deployment = FERMI_R9_MAINNET;
+const user = loadKeypair(process.env.USER_KEYPAIR!);
+const provider = new AnchorProvider(
+  new Connection(process.env.CLUSTER_URL ?? deployment.rpcUrl, 'confirmed'),
+  new Wallet(user),
+  { commitment: 'confirmed' },
+);
+const client = FermiV1AccountClient.connect(
+  provider, 'mainnet-beta', new PublicKey(deployment.programId),
+);
+const group = await client.getGroup(new PublicKey(deployment.group));
+const address = findFermiV1AccountPda(client.programId, group.publicKey, user.publicKey, 0);
+const account = await client.getFermiAccountForOwner(group, user.publicKey, 0);
+console.log(address.toBase58(), account?.name);
 
-// Tail every state event.
-for await (const frame of subscribeStateStream(common)) {
-  console.log(frame.event, frame.data);
-}
+// If the account is absent, this call creates it and sends a transaction:
+// await client.createFermiAccount(group, 0, 'my-account');
 
-// Per-market events with gap-free resume.
-const snap = await snapshotAndStreamMarket({ ...common, market: 0 });
-// snap.snapshot.bids / snap.snapshot.asks is the current book at snap.cursor
-for await (const frame of subscribeMarketEvents({
-  ...common,
-  market: 0,
-  from: snap.cursor, // resume exactly where the snapshot was taken
-})) {
-  // frame.event: 'order_placed' | 'order_cancelled' | 'order_filled' | 'trade' | ...
-  // frame.id is the Redis stream id; persist it to resume after a restart.
-}
-
-// Redis-backed trade tail.
-for await (const trade of subscribeV2TradeStream(common)) {
-  console.log(trade.data); // typed StreamTrade
-}
-
-// Batched ticks over WebSocket.
-for await (const batch of subscribeTicks({
-  wsUrl: 'wss://gateway.fermi.xyz/ws/ticks',
-  apiKey: common.apiKey,
-})) {
-  console.log(`got ${batch.count} ticks`);
-}
+// Typed Anchor access uses r9 names:
+// await client.fermiProgram.account.fermiAccount.fetch(address);
+// client.fermiProgram.coder.accounts.decode('fermiAccount', accountData);
 ```
 
-Available subscribers:
+Exports include `FERMI_V1_IDL`, `FermiV1Idl`, `FermiV1Account`, and `FermiV1Group`.
+The raw JSON is in `src/idl/fermi_v1.json` and the package includes it in `dist/idl/`.
+The r9 source IDL snapshot predates v5 queue instructions. The SDK builds v5
+instructions with the wire encoders in `src/intents.ts`.
 
-| Function | Gateway endpoint | Notes |
-|---|---|---|
-| `subscribeStateStream` | `GET /state/stream` | All-market harness events |
-| `subscribeFrontendStream` | `GET /state/stream/frontend` | Requires ≥1 of `owner` / `fermiAccount` / `market` |
-| `subscribeTradeStream` | `GET /state/stream/trades` | Legacy harness trade tail |
-| `subscribeV2TradeStream` | `GET /v2/stream/trades` | Redis-backed, lower latency |
-| `subscribeMarketEvents` | `GET /v2/events/:market` | Accepts `from` / `lastEventId` for resume |
-| `subscribeMarketFrontendStream` | `GET /v2/stream/frontend/:market` | UI-shaped per-market events |
-| `snapshotAndStreamMarket` | `GET /v2/events/snapshot-and-stream/:market` | Atomic `(book, cursor)` for gap-free attach |
-| `subscribeTicks` | `WS /ticks` (Caddy: `/ws/ticks`) | Batched ticks; defaults to native `WebSocket` (Node 22+/browser) |
+Legacy methods such as `getMangoAccount` and `createMangoAccount` remain aliases.
+They use the r9 decoder and seed. For typed raw Anchor calls, use `client.fermiProgram`.
+See [the migration guide](docs/r9-migration.md) for the full name mapping.
 
-The shared `Subscription<T>` shape is just `AsyncIterable<T> & { close(): void }`.
+## Fees, streams, and direct orders
 
-## Fees
+The relayer fee balance is separate from USDC margin. Use `FermiV1FeeClient`
+to read the current quote and deposit instructions. See [the fee guide](docs/fee-path-end-to-end.md).
 
-The relayer keeps a per-wallet SOL fee ledger:
+The stream helpers support SSE and WebSocket feeds. Use `FERMI_API_URL` for SSE
+and the gateway WebSocket URL for `subscribeTicks`. See [the usage guide](USAGE.md#streams).
 
-- SDK helpers accept `maxFeeLamports?: string`; pass `'AUTO'` unless you
-  intentionally want a lamport cap.
-- If the relayer replies `please deposit gas`, top up via
-  `FermiV1FeeClient.getStatus()` (returns the deposit address + memo) and
-  `depositFeeCredit()` (signs + sends the SOL transfer and reports it to
-  `POST /relayer/fees-deposited`).
+The r9 direct pools were absent on mainnet at the 2026-10-23 check. Use the relayer.
+The direct-order CLI and helpers reject this deployment. Direct helpers remain available for
+an explicitly prepared deployment. They default to an expiry of current slot + 20.
+The low-level direct builder requires a non-zero expiry.
 
-See [`fee_system.md`](./fee_system.md) and
-[`docs/fee-path-end-to-end.md`](./docs/fee-path-end-to-end.md) for the full
-sequence.
+## Documentation and checks
 
-## Direct chain access
+- [Usage guide](USAGE.md): account creation, margin, orders, fees, reads, and streams.
+- [r9 migration](docs/r9-migration.md): IDL provenance, names, seeds, and compatibility.
+- [Build guide](docs/BUILD-SETUP.md): standalone install and package checks.
+- [State API reference](docs/api.md): endpoint and response inventory.
+- [Intent reference](intent_reference.md): payloads and signed-message domains.
 
-`createFermiV1Context` also returns:
-
-- `context.client` — Fermi v1 account client
-- `context.group` — loaded `Group`
-- `context.fermiAccount` — loaded `Fermi v1 account`
-- `context.connection` — Solana `Connection` (uses `CLUSTER_URL`, not the
-  gateway)
-
-so you can still:
-
-- inspect full Fermi v1 state from chain,
-- deposit / withdraw funds,
-- create or manage Fermi v1 accounts,
-- mix direct on-chain actions with gateway-routed relayer intents.
-
-## Notes
-
-- Solana RPC is **not** proxied. Use a real RPC provider in `CLUSTER_URL`;
-  the public `api.mainnet-beta.solana.com` will rate-limit Fermi v1's IDL
-  bootstrap.
-- The bundled quoter (`fermi-v1-quoter`) is intentionally minimal; bigger
-  bot operators should treat it as a starting point.
-- The bootstrap scripts (`create-fermi-account`, `deposit-usdc`,
-  `withdraw-usdc`) are direct Fermi v1 client flows; they do not mint test
-  USDC. For local harness funding use `airdropUsdc()` / `airdropDepositUsdc()`
-  on `FermiV1StateClient` where the gateway enables them.
-- For a step-by-step walkthrough see [`USAGE.md`](./USAGE.md); for build
-  notes see [`docs/BUILD-SETUP.md`](./docs/BUILD-SETUP.md).
+`npm run validate` checks types, builds the package, runs offline regression tests,
+and checks the package contents. Tests use public mainnet account snapshots.
+They do not send transactions.

@@ -1,6 +1,6 @@
 {
   "name": "@fermilabs/fermi-v1-sdk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Self-contained SDK for Fermi v1 relayer writes, state reads, and direct chain interactions.",
   "main": "./dist/index.js",
@@ -29,13 +29,13 @@
     "USAGE.md",
     "src/bin/direct-orders/README.md",
     ".env.example",
-    ".env.fermi-r6-mainnet.example"
+    ".env.fermi-r9-mainnet.example"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepare": "npm run build",
-    "validate": "npm run typecheck && npm run build && npm pack --dry-run",
+    "validate": "npm run typecheck && npm test && npm pack --dry-run",
     "create-fermi-account": "ts-node src/bin/create-fermi-account.ts",
     "deposit-usdc": "ts-node src/bin/deposit-usdc.ts",
     "withdraw-usdc": "ts-node src/bin/withdraw-usdc.ts",
@@ -45,11 +45,12 @@
     "config": "ts-node src/bin/config.ts",
     "simulate": "ts-node src/bin/simulate.ts",
     "portfolio": "ts-node src/bin/portfolio.ts",
-    "onchain-portfolio": "ts-node src/bin/onchain-portfolio.ts"
+    "onchain-portfolio": "ts-node src/bin/onchain-portfolio.ts",
+    "test": "npm run build && node --test test/*.test.cjs"
   },
   "dependencies": {
-    "@blockworks-foundation/mango-v4": "^0.33.9",
-    "@coral-xyz/anchor": "^0.29.0",
+    "@blockworks-foundation/mango-v4": "0.33.9",
+    "@coral-xyz/anchor": "0.29.0",
     "@grpc/grpc-js": "^1.14.1",
     "@grpc/proto-loader": "^0.8.0",
     "@solana/web3.js": "^1.78.2",

@@ -58,7 +58,7 @@ async function main(): Promise<void> {
     fermiAccountPk: requiredEnv('FERMI_ACCOUNT_PK'),
     programId: process.env.PROGRAM_ID,
   });
-  const account = await context.client.getMangoAccount(
+  const account = await context.client.getFermiAccount(
     context.fermiAccount.publicKey,
   );
 

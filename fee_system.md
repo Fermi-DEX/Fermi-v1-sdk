@@ -1,3 +1,6 @@
+> For r9 client usage, use the [gateway fee guide](docs/fee-path-end-to-end.md).
+> Local service details in this design reference describe the internal fee service.
+
 # Relayer Fee System
 
 This document describes how external clients interact with the Fermi v1
@@ -265,7 +268,10 @@ import {
 ### Check balance and current quote
 
 ```ts
-const fees = new FermiV1FeeClient('http://127.0.0.1:9093');
+const fees = new FermiV1FeeClient({
+  gatewayUrl: 'https://v1.fermi.trade/prod',
+  apiKey: process.env.FERMI_API_KEY!,
+});
 const status = await fees.getStatus({
   userOwner: wallet.publicKey,
   fermiAccount,
@@ -310,7 +316,10 @@ The same fee preference applies to:
 ### Deposit (one-shot)
 
 ```ts
-const fees = new FermiV1FeeClient('http://127.0.0.1:9093');
+const fees = new FermiV1FeeClient({
+  gatewayUrl: 'https://v1.fermi.trade/prod',
+  apiKey: process.env.FERMI_API_KEY!,
+});
 const resp = await depositFeeCredit({
   connection,
   payer, // Keypair - also the user_owner signer
@@ -318,6 +327,7 @@ const resp = await depositFeeCredit({
   fermiAccount,
   lamports: 100_000_000, // 0.1 SOL
   feeClient: fees,
+  sourceChain: 'solana-mainnet',
   // optional: depositAddress if you want to skip the /fees/status preflight
   // optional: adminToken if CTM_FEE_ADMIN_TOKEN is set on the relayer
 });

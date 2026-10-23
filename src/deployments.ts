@@ -39,6 +39,7 @@ export type FermiV1Deployment = {
   directPoolsInitialized: boolean;
 };
 
+/** @deprecated Retired deployment. Use FERMI_R9_MAINNET. */
 export const FERMI_R6_MAINNET: FermiV1Deployment = {
   name: 'fermi-r6-mainnet',
   cluster: 'mainnet-beta',
@@ -110,8 +111,80 @@ export const FERMI_R6_MAINNET: FermiV1Deployment = {
   ],
 };
 
+/** r9 addresses from production /config, checked 2026-10-23. */
+export const FERMI_R9_MAINNET: FermiV1Deployment = {
+  name: 'fermi-r9-mainnet',
+  cluster: 'mainnet-beta',
+  rpcUrl: 'https://api.mainnet-beta.solana.com',
+  programId: 'FRMiX94PWHbndvySq8xyRx185GvPeggUeKaLmZgVdd4',
+  group: '2mDvxS4A6bJyR3RjLwvBWeNuFvCAaQ26ss7w1jUChRse',
+  groupNum: 1,
+  groupAdmin: 'C6McwyLwidpExcbdK28JDPU4LSXD1WDyXNdPnZewd6Wo',
+  securityAdmin: 'HUkCAMm2CRfgvxPXUdGgNHqY8gkV65cwkSP5k2HU9wi5',
+  authorityState: 'B26BWduuUnojTFmyMK3mP19Gs4wdgcEVMM7xEQMrtbvU',
+  ctmSigner: '6s8nfTaY2gpiH1AnvZSqc71ucJTshSvvHoUCfUPPdQMs',
+  usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  usdcBank: '147eAzRXsDhNnL1We6qDXN7XfDrRVJvLszp59v1XnEXv',
+  usdcVault: 'HwA5W62F4vGrAetTuGHs8GiRc8cDwB4ignXLZnbNsHUA',
+  usdcOracle: 'Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX',
+  usdcTokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+  gatewayUrl: 'https://v1.fermi.trade/prod',
+  gatewayGrpcAddr: 'v1.fermi.trade:443',
+  directPoolsInitialized: false,
+  markets: [
+    {
+      symbol: 'SOL',
+      marketIndex: 0,
+      perpMarket: '2jUszh9DyyAEFUvDR9mRLYEprLoC9w6pgpYRQVGoMPRM',
+      bids: 'CXKCPKH2DNks4D2nT5t4tHsj8xh3n9FJEq6TVhCVDtdM',
+      asks: 'C2hyQhp9oQECFPQwjGUMBGAXSY96yrvYWGfUpecvJKLe',
+      eventQueue: '9TMUoCYcqwaeY7UidexCRnXqafjNR9seg1PF1pPy9ZJZ',
+      oracle: '7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE',
+      queue: '2qzZteLYcn5nWGnhoZDTBjDPnPHSF7CAS8VJfq2s8Jko',
+      directPool: 'GYomPovq6CXZ4sdSf7dSJ4v7NEE8Ki4Wwv42W7ytD7Fz',
+      baseDecimals: 5,
+      baseLotSize: 100,
+      quoteLotSize: 1,
+      tickSize: 0.001,
+      minBaseSize: 0.001,
+    },
+    {
+      symbol: 'ETH',
+      marketIndex: 1,
+      perpMarket: '6DefNnu4epthsW4HG6oiFQE3uF1W6YbGLAtKqYfqj1TY',
+      bids: 'ALdK3AWq9Ym2TqBbsew1zjreN3MR5J1HNwE1fGASsGeL',
+      asks: 'BVtpJ3PdG7rJ7zS1mC2SgvJ69cyJwR3RP9YqYDrLbmfv',
+      eventQueue: '58rMkcrWNmNM61iexT31Thkw4XREXu5gM9K1sXAbP8KM',
+      oracle: '42amVS4KgzR9rA28tkVYqVXjq9Qa8dcZQMbH5EYFX6XC',
+      queue: '2L27coMt2RXQLFhqgvFmhA1q6EBt8j9BLRNaJQ5nERD6',
+      directPool: 'qmjH9HKmvaMZcoi5FPb8pUYdmbtLxizAMh5WYDKi1nq',
+      baseDecimals: 6,
+      baseLotSize: 100,
+      quoteLotSize: 10,
+      tickSize: 0.1,
+      minBaseSize: 0.0001,
+    },
+    {
+      symbol: 'BTC',
+      marketIndex: 2,
+      perpMarket: 'BBWb85XLqJNKUCA9Ma7yvEWLQKhpK7mTUhBJxFSgfL8N',
+      bids: '7Ud5Eim6AxXupuSngvXKXsMdYj51k1xTRQpcDHB5196M',
+      asks: 'Gh6JZSWKEb9u55Vt5NUPj6VWTtodRYZG8VV4YoEYSEYi',
+      eventQueue: 'DVqPiCuFyy2kZKUVwk1NY93cy9HY6ojRPqe9oco4JmXW',
+      oracle: '4cSM2e6rvbGQUFiJbqytoVMi5GgghSMr8LwVrT9VPSPo',
+      queue: 'J22zX4ZZH8xUKekv21MG9PVkEBKgNttPa2hEtb6u4TLe',
+      directPool: '8hBAM13QVwH6ko97JTVNVtKRSprQyPGYrd1zVydYGzt8',
+      baseDecimals: 6,
+      baseLotSize: 100,
+      quoteLotSize: 100,
+      tickSize: 1.0,
+      minBaseSize: 0.0001,
+    },
+  ],
+};
+
 export const FERMI_V1_DEPLOYMENTS: Record<string, FermiV1Deployment> = {
-  [FERMI_R6_MAINNET.name]: FERMI_R6_MAINNET,
+  [FERMI_R9_MAINNET.name]: FERMI_R9_MAINNET,
 };
 
 export function getFermiV1Deployment(
@@ -148,9 +221,14 @@ export function findFermiV1Market(
   market: string | number,
 ): FermiV1MarketDeployment | undefined {
   if (typeof market === 'number') {
-    return deployment.markets.find((candidate) => candidate.marketIndex === market);
+    return deployment.markets.find(
+      (candidate) => candidate.marketIndex === market,
+    );
   }
-  const normalized = market.trim().toUpperCase().replace(/-PERP$/, '');
+  const normalized = market
+    .trim()
+    .toUpperCase()
+    .replace(/-PERP$/, '');
   return deployment.markets.find(
     (candidate) =>
       candidate.symbol.toUpperCase() === normalized ||
@@ -172,4 +250,3 @@ export function deploymentEnv(
     FERMI_API_GRPC_ADDR: deployment.gatewayGrpcAddr ?? '',
   };
 }
-

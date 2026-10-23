@@ -32,7 +32,9 @@ async function waitForQueueDrain(
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const response = await fetch(`${baseUrl}/state/queue/0?view=confirmed`);
+    const response = await fetch(`${baseUrl}/state/queue/0?view=confirmed`, {
+      headers: { 'x-api-key': process.env.FERMI_API_KEY! },
+    });
     if (!response.ok) {
       throw new Error(`queue state request failed: ${response.status}`);
     }
@@ -54,7 +56,7 @@ async function loadOpenOrderCount(
   context: Awaited<ReturnType<typeof createFermiV1Context>>,
   marketIndex: number,
 ): Promise<number> {
-  const fresh = await (context.client as any)['get' + 'Man' + 'goAccount'](
+  const fresh = await context.client.getFermiAccount(
     context.fermiAccount.publicKey,
   );
   const orders = await fresh.loadPerpOpenOrdersForMarket(
@@ -97,7 +99,7 @@ async function main(): Promise<void> {
       throw new Error('FERMI_API_KEY is required (UUID)');
     })();
   const context = await createFermiV1Context({
-    cluster: 'devnet',
+    cluster: config.cluster === 'localnet' ? 'devnet' : config.cluster,
     clusterUrl: config.clusterUrl,
     gatewayUrl: process.env.FERMI_API_URL ?? harnessBaseUrl,
     gatewayGrpcAddr: process.env.FERMI_API_GRPC_ADDR,

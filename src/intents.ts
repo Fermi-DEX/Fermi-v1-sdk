@@ -720,6 +720,9 @@ export function buildExecutionQueueV5EnqueueDirectWithIntentIxs(
 
   const payloadHash = hashExecutionQueuePayload(params.payload);
   const expiresAtSlot = toBigInt(params.expiresAtSlot ?? 0);
+  if (expiresAtSlot <= 0n) {
+    throw new Error('r9 direct intents require a non-zero expiresAtSlot');
+  }
   const accountsHash = hashExecutionQueueAccountsForV5DirectEnqueue(
     params.group,
     params.queue,

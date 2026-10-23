@@ -1,3 +1,6 @@
+> r9 retains the signed-message domains in this reference. On-chain IDL account names use `fermiAccount`.
+> Relayer transport fields retain `mango_account`. See [r9 migration](docs/r9-migration.md).
+
 # Intent Reference
 
 This file documents the current SDK intent model for the v5 FIFO perps path.
@@ -60,11 +63,11 @@ expiries can mature while the intent is waiting behind earlier queue work.
 
 ## Relayed User Signature
 
-Relayed v5 intents sign `fermi-v1-user-intent-v2`.
+Relayed v5 intents sign `mango-v5-user-intent-v2`.
 
 ```text
 sha256(
-  utf8("fermi-v1-user-intent-v2")
+  utf8("mango-v5-user-intent-v2")
   || group_pubkey_32
   || fermi_account_pubkey_32
   || user_owner_pubkey_32
@@ -89,7 +92,7 @@ the v5 on-chain rolling replay cache. The SDK behavior is:
 - cancel all: use a fresh random replay nonce unless
   `params.intentClientOrderId` is set
 
-The legacy `fermi-v1-legacy-user-intent-v2` builder remains exported only for older
+The legacy `mango-v4-user-intent-v2` builder remains exported only for older
 deployments; current v5 helpers do not use it.
 
 ## Account Hash Rule
@@ -142,11 +145,11 @@ non-signer, matching on-chain verification.
 
 ## Direct Fallback Signature
 
-Direct fallback signs `fermi-v1-direct-intent-v1`:
+Direct fallback signs `mango-v5-direct-intent-v1`:
 
 ```text
 sha256(
-  utf8("fermi-v1-direct-intent-v1")
+  utf8("mango-v5-direct-intent-v1")
   || group_pubkey_32
   || fermi_account_pubkey_32
   || user_owner_pubkey_32
@@ -175,15 +178,18 @@ import {
 } from '@fermilabs/fermi-v1-sdk';
 
 const context = await createFermiV1Context({
-  cluster: 'devnet',
+  deployment: 'fermi-r9-mainnet',
+  apiKey: process.env.FERMI_API_KEY!,
   clusterUrl: process.env.CLUSTER_URL!,
   userKeypair: process.env.USER_KEYPAIR!,
-  groupPk: process.env.GROUP_PK!,
   fermiAccountPk: process.env.FERMI_ACCOUNT_PK!,
   programId: process.env.PROGRAM_ID,
 });
 
-const relayer = new FermiV1RelayerClient(process.env.RELAYER_ADDR!);
+const relayer = new FermiV1RelayerClient({
+  gatewayGrpcAddr: 'v1.fermi.trade:443',
+  apiKey: process.env.FERMI_API_KEY!,
+});
 
 await submitPerpOrderViaRelayer(relayer, context, {
   marketIndex: 0,

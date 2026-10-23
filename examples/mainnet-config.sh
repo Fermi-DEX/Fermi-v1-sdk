@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export FERMI_DEPLOYMENT="${FERMI_DEPLOYMENT:-fermi-r6-mainnet}"
+export FERMI_DEPLOYMENT="${FERMI_DEPLOYMENT:-fermi-r9-mainnet}"
 
 npm run config

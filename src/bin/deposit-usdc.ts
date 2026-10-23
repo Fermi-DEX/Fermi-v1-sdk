@@ -6,14 +6,9 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import {
   getAssociatedTokenAddress,
   Group,
-  MangoAccount,
-  MangoClient as FermiV1AccountClient,
 } from '@blockworks-foundation/mango-v4';
-import {
-  loadKeypair,
-  resolveProgramIdForGroup,
-  toPublicKey,
-} from '../context';
+import { FermiV1Account, FermiV1AccountClient } from '../accountClient';
+import { loadKeypair, resolveProgramIdForGroup, toPublicKey } from '../context';
 import {
   clusterFromEnv,
   clusterUrlFromEnv,
@@ -69,26 +64,38 @@ async function createClientAndGroup(): Promise<{
     programId: process.env.PROGRAM_ID,
     deployment: deployment?.name,
   });
-  const client = await FermiV1AccountClient.connect(provider, cluster, programId, {
-    idsSource: 'get-program-accounts',
-  });
+  const client = await FermiV1AccountClient.connect(
+    provider,
+    cluster,
+    programId,
+    {
+      idsSource: 'get-program-accounts',
+    },
+  );
   const group = await client.getGroup(groupPk);
-  return { user, connection, client, group, programId, deployment: deployment?.name };
+  return {
+    user,
+    connection,
+    client,
+    group,
+    programId,
+    deployment: deployment?.name,
+  };
 }
 
-async function resolveMangoAccount(params: {
+async function resolveFermiAccount(params: {
   client: FermiV1AccountClient;
   group: Group;
   owner: PublicKey;
   fermiAccountPk?: string;
   accountNumber: number;
-}): Promise<MangoAccount> {
+}): Promise<FermiV1Account> {
   if (params.fermiAccountPk) {
-    return await params.client.getMangoAccount(
+    return await params.client.getFermiAccount(
       toPublicKey(params.fermiAccountPk),
     );
   }
-  const found = await params.client.getMangoAccountForOwner(
+  const found = await params.client.getFermiAccountForOwner(
     params.group,
     params.owner,
     params.accountNumber,
@@ -107,7 +114,7 @@ async function main(): Promise<void> {
   const amountUi = parseAmountUi('USDC_AMOUNT_UI');
   const { user, connection, client, group, programId, deployment } =
     await createClientAndGroup();
-  const fermiAccount = await resolveMangoAccount({
+  const fermiAccount = await resolveFermiAccount({
     client,
     group,
     owner: user.publicKey,
@@ -151,6 +158,7 @@ async function main(): Promise<void> {
         program_id: programId.toBase58(),
         group: group.publicKey.toBase58(),
         owner: user.publicKey.toBase58(),
+        fermi_account: fermiAccount.publicKey.toBase58(),
         mango_account: fermiAccount.publicKey.toBase58(),
         mint: mintPk.toBase58(),
         amount_ui: amountUi,

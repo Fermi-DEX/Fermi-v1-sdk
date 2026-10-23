@@ -143,7 +143,9 @@ function uiPriceToLotsForSide(
  * SDK does not perform it. Direct-submit flows go straight on-chain, so this
  * is now a no-op kept for call-site stability.
  */
-async function maybeRegisterDirectLane(_context: FermiV1Context): Promise<void> {
+async function maybeRegisterDirectLane(
+  _context: FermiV1Context,
+): Promise<void> {
   return;
 }
 
@@ -201,6 +203,11 @@ async function submitPerpIntentDirect(params: {
   nonce?: BigNumberish;
   sendOptions?: SendOptions;
 }): Promise<DirectIntentSubmitResult> {
+  if (params.context.deployment?.directPoolsInitialized === false) {
+    throw new Error(
+      'direct pools are not initialized for this deployment; use the relayer',
+    );
+  }
   if ((params.minExecuteSlot ?? 0n) !== 0n) {
     throw new Error(
       'v5 direct enqueue does not support minExecuteSlot; use expiresAtSlot only',
@@ -231,7 +238,9 @@ async function submitPerpIntentDirect(params: {
     marketIndex: params.marketIndex,
     remainingAccounts,
     payload: params.payload,
-    expiresAtSlot: params.expiresAtSlot ?? 0n,
+    expiresAtSlot:
+      params.expiresAtSlot ??
+      BigInt((await params.context.connection.getSlot('confirmed')) + 20),
     nonce: params.nonce ?? randomU64(),
     userOwner: params.context.user.publicKey,
     fermiAccount: params.context.fermiAccount.publicKey,

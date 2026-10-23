@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export FERMI_DEPLOYMENT="${FERMI_DEPLOYMENT:-fermi-r6-mainnet}"
+export FERMI_DEPLOYMENT="${FERMI_DEPLOYMENT:-fermi-r9-mainnet}"
 export FERMI_ACCOUNT_NUM="${FERMI_ACCOUNT_NUM:-0}"
 export WITHDRAW_ALLOW_BORROW="${WITHDRAW_ALLOW_BORROW:-false}"
 

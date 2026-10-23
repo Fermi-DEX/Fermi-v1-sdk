@@ -1,363 +1,224 @@
-# Fermi v1 SDK — Usage Guide
+# Fermi v1 SDK usage
 
-A walkthrough for someone connecting a fresh wallet to a running Fermi v1
-deployment (relayer + harness + Fermi v1 program). The README covers the
-high-level surface and library API; this guide covers the operational
-sequence — what to run, in what order, and how to verify each step before
-moving on.
-
-If anything below fails, run `npm run smoke-check` first to confirm RPC,
-harness, and relayer reachability before debugging higher-level code.
-
----
+This guide uses `fermi-r9-mainnet`. Account creation, deposits, withdrawals,
+fee deposits, and order submission use real funds and send transactions.
 
 ## 1. Install and configure
 
 ```bash
-npm install                 # also runs `npm run build` via `prepare`
-cp .env.example .env
+npm install
+cp .env.fermi-r9-mainnet.example .env
 ```
 
-Required for **everything**:
+Set `FERMI_API_KEY` to the UUID from the gateway operator.
+Set `USER_KEYPAIR` to your wallet file.
+Use `CLUSTER_URL` for your mainnet RPC provider.
 
-| var            | example                                  |
-|----------------|------------------------------------------|
-| `CLUSTER`      | `devnet`                                 |
-| `CLUSTER_URL`  | `https://api.devnet.solana.com`          |
-| `USER_KEYPAIR` | absolute path to a Solana keypair JSON   |
-| `GROUP_PK`     | Fermi v1 group public key                   |
+The deployment preset supplies the program, group, USDC mint, and gateway URLs.
+If your `.env` comes from r6, replace its program and group values.
+Old environment values override the new preset.
 
-Required for **relayer/harness** flows:
+| Variable | Purpose |
+| --- | --- |
+| `FERMI_DEPLOYMENT=fermi-r9-mainnet` | Select the r9 preset |
+| `CLUSTER=mainnet-beta` | Select the Solana cluster |
+| `CLUSTER_URL` | Select the Solana RPC endpoint |
+| `FERMI_API_URL=https://v1.fermi.trade/prod` | REST and SSE gateway |
+| `FERMI_API_GRPC_ADDR=v1.fermi.trade:443` | gRPC gateway with TLS |
+| `FERMI_API_KEY` | UUID for gateway clients |
+| `USER_KEYPAIR` | Wallet file for on-chain actions and intent signatures |
+| `FERMI_ACCOUNT_NUM=0` | Account number for creation and deposit/withdrawal lookup |
+| `FERMI_ACCOUNT_PK` | r9 account address for the trading context and portfolio CLI |
 
-| var               | example                                         |
-|-------------------|-------------------------------------------------|
-| `HARNESS_URL`     | `http://harness-host:9191`                      |
-| `RELAYER_ADDR`    | `relayer-host:9190`                             |
-| `FEE_HTTP_URL`    | `http://relayer-host:9193`                      |
-| `FERMI_ACCOUNT_PK`| pubkey of the account you'll trade with         |
+The SDK ignores `HARNESS_URL`, `RELAYER_ADDR`, and `FEE_HTTP_URL`.
 
-If you don't have a Fermi v1 account yet, skip ahead to
-[3. Bootstrap a Fermi v1 account](#3-bootstrap-a-mango-account) before doing
-anything else.
-
----
-
-## 2. Smoke check
-
-Verify each external dependency is reachable before troubleshooting deeper.
-
-```bash
-npm run smoke-check
-```
-
-Output looks like:
-
-```
-fermi-v1 smoke-check
----------------------
-PASS  rpc           187ms     slot=308542193
-PASS  harness        24ms     mode=devnet backend=rust-backend markets=3 users=26
-PASS  relayer        61ms     reachable (server replied: ...)
-PASS  fees-http      31ms     deposit=Bv... balance=0
-```
-
-- `PASS` on `rpc` is mandatory (everything else needs the chain).
-- `SKIP` means the corresponding env var isn't set — fine if you genuinely
-  don't need that surface.
-- `FAIL` on `relayer` is usually a wrong port, a firewall, or the binary not
-  running. The mainnet smoke relayer's gRPC default is `:9190`.
-
-Read the harness-published transaction-construction config:
+## 2. Read the current config
 
 ```bash
 npm run config
+npm run smoke-check
 ```
 
-This calls `GET /config` by default. Set `CONFIG_SOURCE=bootstrap` to call the
-alias `GET /state/bootstrap`.
+`config` reads `/config`. The response includes program and group addresses,
+market indices, lot sizes, oracles, and current fees. `CONFIG_SOURCE=bootstrap`
+selects `/state/bootstrap` instead.
 
----
+`smoke-check` checks RPC, REST, fees, and gRPC reachability. It submits an invalid
+intent as a connectivity probe. It does not place an order.
 
-## 3. Bootstrap a Fermi v1 account
+## 3. Create an account
 
-For a brand-new wallet, create the account and fund it:
+The wallet needs SOL for rent and transaction fees.
 
 ```bash
-npm run create-fermi-account     # prints the created FERMI_ACCOUNT_PK
-npm run deposit-usdc             # deposits USDC_AMOUNT_UI from your ATA
-npm run withdraw-usdc            # withdraws USDC_AMOUNT_UI back to your ATA
+FERMI_ACCOUNT_NAME=my-account npm run create-fermi-account
 ```
 
-The create script honors `FERMI_ACCOUNT_NUM` and `FERMI_ACCOUNT_NAME` so you
-can run it multiple times for sub-accounts. The deposit and withdraw scripts
-read `USDC_AMOUNT_UI` and `USDC_MINT` (or fall back to the group's perp settle
-mint).
+Copy `fermi_account` from the output into `FERMI_ACCOUNT_PK` in `.env`.
+The output also contains the transaction signature and a legacy `mango_account` alias.
+If the account number already exists, the command stops with its address.
 
-Quick portfolio readout:
+Default capacities are 1 token, 0 Serum3, 3 perps, and 32 perp open orders.
+The `FERMI_ACCOUNT_TOKEN_COUNT`, `FERMI_ACCOUNT_PERP_COUNT`, and
+`FERMI_ACCOUNT_PERP_OO_COUNT` variables override these values.
+`FERMI_ACCOUNT_SERUM3_COUNT` must remain `0`.
+
+The r9 account uses the `FermiAccount` PDA seed and discriminator.
+An r6 account address cannot identify an r9 account.
+
+## 4. Deposit USDC
+
+The wallet must hold real mainnet USDC in its associated token account.
 
 ```bash
-OWNER=<your-wallet-pubkey> npm run portfolio
+USDC_AMOUNT_UI=5 npm run deposit-usdc
 ```
 
-Backup on-chain readout:
+Amounts use UI units. `5` means 5 USDC. The command uses `FERMI_ACCOUNT_PK` when
+present. Otherwise, it derives the account from the wallet and `FERMI_ACCOUNT_NUM`.
+It does not create a missing trading account or mint USDC.
+
+Read the resulting balance:
 
 ```bash
+OWNER=<wallet-public-key> npm run portfolio
 npm run onchain-portfolio
 ```
 
-Sample output:
+`portfolio` reads gateway state. `onchain-portfolio` reads Solana RPC.
+The latter requires `FERMI_ACCOUNT_PK`.
 
-```
-portfolio for 3Ynr...788J  (view=optimistic)
+## 5. Fund relayer fees
 
-fermi_accounts: 82Td...1hem
+USDC margin does not fund the relayer fee balance. The relayer uses a separate
+SOL ledger for each owner/account pair.
 
-margin
-------
-  equity         $4,624.36
-  init_health    $4,009.90    (100.00%)
-  maint_health   $4,317.16    (100.00%)
+Construct `FermiV1FeeClient` with `{ gatewayUrl, apiKey }`.
+Call `getStatus({ userOwner, fermiAccount })` for the deposit address, memo,
+current quote, and available balance. Use the exact returned address and memo.
 
-per_market
-----------
-  market           base_pos     quote_pos      bids        asks
-  SOL-PERP                0             0           0           0
-```
+The [fee guide](docs/fee-path-end-to-end.md) contains the deposit sequence.
+`depositFeeCredit` sends a SOL transaction and reports its signature to the gateway.
+Set `sourceChain: 'solana-mainnet'` for mainnet deposits.
 
-`init_health_ratio` of 100% means you're fully unhealthy-margin-distance from
-liquidation — the highest the harness reports for an account with no open
-positions.
+## 6. Simulate and submit an order
 
----
-
-## 4. Simulate a trade (no RPC, sub-millisecond)
-
-The harness exposes `/simulate` for projecting a proposed perp order onto
-**optimistic** state — your existing positions, accepted intents, observed
-fills, and others' fills against your resting orders. It is cache-only on the
-hot path; first call to a fresh harness pays one RPC (~200–400 ms) to load
-the Fermi v1 account, then every subsequent call against the same owner is pure
-local math (~2–10 ms) until the 15 s cache TTL expires.
-
-The packaged script wraps both calls:
+A simulation does not send a transaction:
 
 ```bash
-SIMULATE_OWNER=<wallet-pubkey> \
-SIMULATE_MARKET=SOL-PERP \
-SIMULATE_SIDE=buy \
-SIMULATE_QUANTITY=10 \
-npm run simulate
+SIMULATE_OWNER=<wallet-public-key> SIMULATE_MARKET=SOL-PERP \
+  SIMULATE_SIDE=buy SIMULATE_QUANTITY=0.01 SIMULATE_PRICE=80 npm run simulate
 ```
 
-Output:
+The script warms the simulation cache before the read.
+A simulation result does not guarantee later execution.
 
-```
-warm: owner=3Ynr...788J accounts=1 load=401ms ttl=15000ms
-
-trade: BUY 10 SOL-PERP @ $85.11 (oracle, limit)
-account: 82Td...1hem
-freshness: cached_age=17ms snapshot_age=4ms overlay=false compute=8ms
-
-              before              after               delta
-equity              $4,624.36           $4,624.36           +$0.00
-init_health         $4,009.90           $3,839.69         -$170.21
-maint_health        $4,317.16           $4,232.06          -$85.10
-init_ratio              100.00%             95.75%
-maint_ratio             100.00%             97.83%
-
-OK — trade fits available margin
-```
-
-Push the quantity past available margin and rejection fires:
+This command submits a real relayed order:
 
 ```bash
-SIMULATE_QUANTITY=500 npm run simulate
-# … REJECT — reasons: insufficient_init_margin
+PERP_ORDER_MARKET_INDEX=0 PERP_ORDER_SIDE=bid PERP_ORDER_PRICE=80 \
+  PERP_ORDER_QUANTITY=0.01 PERP_ORDER_TYPE=postOnly \
+  PERP_ORDER_MAX_FEE_LAMPORTS=AUTO npm run place-order
 ```
 
-### Programmatic use
+Market indices are `0` for SOL, `1` for ETH, and `2` for BTC.
+Price and quantity use UI units. Supported order types include `limit`, `ioc`,
+`postOnly`, `market`, and `postOnlySlide`.
 
-For a real UI, call `simulateWarm()` once when the user opens a trade modal,
-then call `simulate()` on every keystroke. Don't call warm in a tight loop;
-warm is RPC-bound, simulate is not.
+The relayer returns acceptance before the queue executes the order.
+Read the confirmed order book and account orders for the execution result.
+`optimistic` state can include an accepted intent that later fails on-chain.
 
-```ts
-import { FermiV1StateClient } from '@fermilabs/fermi-v1-sdk';
-
-const harness = new FermiV1StateClient(process.env.HARNESS_URL!);
-
-// Once on modal open:
-await harness.simulateWarm({ owner });
-
-// On every quantity-input change:
-const result = await harness.simulate({
-  owner,
-  trade: {
-    market: 'SOL-PERP',
-    side: 'buy',
-    quantity: parseFloat(quantityField.value),
-    price: null,            // null = use oracle price
-    order_type: 'limit',
-    reduce_only: false,
-  },
-});
-
-if (result.would_reject) {
-  showError(result.reject_reasons.join(', '));
-} else {
-  setMargin({
-    before: result.before.init_health_ui_quote,
-    after: result.after.init_health_ui_quote,
-  });
-}
-```
-
-### Cache-miss errors
-
-If you see `HTTP 425 cache_miss`, you skipped the warm step or the cache
-expired. Either:
-
-- POST `/simulate/warm` first (the script does this for you), or
-- Hit `/state/users/<owner>` first — the harness primes the simulate cache
-  as a side-effect of every `/state/*` query for that owner.
-
----
-
-## 5. Place and cancel a perp order
-
-Two paths:
-
-**Via the relayer (recommended for production-style flow):**
-
-CLI:
-
-```bash
-PERP_ORDER_MARKET_INDEX=0 \
-PERP_ORDER_SIDE=bid \
-PERP_ORDER_PRICE=100 \
-PERP_ORDER_QUANTITY=0.01 \
-npm run place-order
-```
-
-Programmatic:
+Programmatic cancellation uses the same context and relayer:
 
 ```ts
 import {
-  FermiV1RelayerClient,
-  PerpOrderSide,
-  createFermiV1Context,
-  submitPerpOrderViaRelayer,
+  cancelAllPerpOrdersViaRelayer,
   cancelPerpOrderByClientIdViaRelayer,
 } from '@fermilabs/fermi-v1-sdk';
 
-const context = await createFermiV1Context({
-  cluster: 'devnet',
-  clusterUrl: process.env.CLUSTER_URL!,
-  userKeypair: process.env.USER_KEYPAIR!,
-  groupPk: process.env.GROUP_PK!,
-  fermiAccountPk: process.env.FERMI_ACCOUNT_PK!,
-});
-const relayer = new FermiV1RelayerClient(process.env.RELAYER_ADDR!);
-
-const clientOrderId = Date.now();
-await submitPerpOrderViaRelayer(relayer, context, {
-  marketIndex: 0,
-  side: PerpOrderSide.bid,
-  price: 100,
-  quantity: 0.01,
-  clientOrderId,
-  maxFeeLamports: 'AUTO',
-});
-
 await cancelPerpOrderByClientIdViaRelayer(relayer, context, {
   marketIndex: 0,
-  clientOrderId,
+  clientOrderId: 123n,
   maxFeeLamports: 'AUTO',
 });
+await cancelAllPerpOrdersViaRelayer(relayer, context, { marketIndex: 0 });
 ```
 
-**Via direct on-chain enqueue (skips relayer):**
+The [README](README.md#programmatic-trading) contains a complete context example.
+Relayed intents default to `minExecuteSlot=0` and `expiresAtSlot=0`.
+These defaults differ from the required finite expiry on the direct path.
+
+## 7. Withdraw USDC
 
 ```bash
-DIRECT_ORDER_MARKET_INDEX=0 \
-DIRECT_ORDER_SIDE=bid \
-DIRECT_ORDER_PRICE=100 \
-DIRECT_ORDER_QUANTITY=0.01 \
-npm run direct-place-order
+USDC_AMOUNT_UI=5 WITHDRAW_ALLOW_BORROW=false npm run withdraw-usdc
 ```
 
-The relayer path uses the v5 user-intent envelope (`fermi-v1-user-intent-v2`)
-and goes through the FIFO queue. The direct path uses
-`execution_queue_v5_enqueue_direct_market` and bypasses the CTM signer, which
-is why it requires more env vars and the executor must be running to
-eventually drain it.
+The command returns USDC to the owner ATA. It creates the ATA if it is absent.
+Account health and outstanding positions can limit the withdrawal.
+A failed withdrawal does not establish that the account has no USDC balance.
 
-For a copy-paste end-to-end demo see
-[`examples/direct-v5-smoketest.ts`](./examples/direct-v5-smoketest.ts).
-
----
-
-## 6. Fees and gas
-
-The relayer maintains a per-wallet SOL fee ledger separate from your main
-wallet balance. Every relayed intent debits this ledger; if it runs dry the
-relayer rejects with `please deposit gas`.
-
-Top up flow:
-
-1. Read `deposit_address` from `/fees/status` (or `npm run smoke-check` with
-   `USER_OWNER_PK` set).
-2. Send SOL to that address with the canonical memo
-   `fee_credit:v1:<owner>:<fermi_account>`.
-3. Call `POST /fees-deposited` to credit the ledger.
-
-The SDK exposes `buildFeeDepositInstructions()` and `depositFeeCredit()` to
-do all three steps in one call:
+## Streams
 
 ```ts
-import { depositFeeCredit } from '@fermilabs/fermi-v1-sdk';
+import { snapshotAndStreamMarket, subscribeMarketEvents } from '@fermilabs/fermi-v1-sdk';
 
-await depositFeeCredit({
-  connection: context.connection,
-  payer: context.user,
-  userOwner: context.user.publicKey,
-  fermiAccount: context.fermiAccount.publicKey,
-  feeHttpUrl: process.env.FEE_HTTP_URL!,
-  lamports: 100_000_000,   // 0.1 SOL
-});
+const common = {
+  gatewayUrl: 'https://v1.fermi.trade/prod',
+  apiKey: process.env.FERMI_API_KEY!,
+};
+const snapshot = await snapshotAndStreamMarket({ ...common, market: 0 });
+const stream = subscribeMarketEvents({ ...common, market: 0, from: snapshot.cursor });
+try {
+  for await (const frame of stream) {
+    console.log(frame.id, frame.event, frame.data);
+  }
+} finally {
+  stream.close();
+}
 ```
 
-Most flows can leave `maxFeeLamports: 'AUTO'` and let the relayer pick.
+The snapshot includes a cursor for subsequent stream reads.
+Store the cursor for reconnects. The stream clients send `x-api-key`.
+Rate limits surface as `RateLimitedError`.
 
-See [`fee_system.md`](./fee_system.md) for the canonical reference and
-[`docs/fee-path-end-to-end.md`](./docs/fee-path-end-to-end.md) for a worked
-sequence.
+| Helper | Endpoint |
+| --- | --- |
+| `subscribeStateStream` | `/state/stream` |
+| `subscribeFrontendStream` | `/state/stream/frontend` |
+| `subscribeTradeStream` | `/state/stream/trades` |
+| `subscribeV2TradeStream` | `/v2/stream/trades` |
+| `subscribeMarketEvents` | `/v2/events/:market` |
+| `subscribeMarketFrontendStream` | `/v2/stream/frontend/:market` |
+| `snapshotAndStreamMarket` | `/v2/events/snapshot-and-stream/:market` |
+| `subscribeTicks` | Gateway WebSocket URL, supplied as `wsUrl` |
 
----
+## Direct orders and custom deployments
 
-## 7. Run a quoter bot
+The r9 mainnet direct pools were absent at the 2026-10-23 check.
+The direct-order CLI and helpers reject this preset. Use the relayer for mainnet.
 
-Minimal market-making bot that quotes around CoinGecko spot:
+For a prepared custom deployment, set its group, program, RPC, and cluster explicitly.
+Build the context without the r9 deployment selector. Custom groups require an
+explicit `programId`. The SDK does not fall back to a Mango program ID.
 
-```bash
-BOT_SIDE=bid BOT_SPREAD_BPS=20 BOT_SIZE=0.01 BOT_INTERVAL_MS=2000 \
-  npm exec fermi-v1-quoter
-```
+The direct helpers default to `currentSlot + 20` for the intent expiry.
+The low-level builder requires an explicit non-zero `expiresAtSlot`.
+A longer expiry can exceed the replay window. The program permits a TTL up to
+5,400 slots, so client expiry policy matters.
 
-The bundled bot is intentionally minimal — production setups should fork it
-and add their own funding logic, kill switches, and per-market parameters.
+## Common errors
 
----
+| Error | Action |
+| --- | --- |
+| Invalid account discriminator | Use this SDK's client and an r9 account address |
+| Deployment/program/group mismatch | Replace stale `.env` overrides with the r9 values |
+| Account missing for owner and number | Create the r9 account before deposit or trading |
+| Non-zero Serum3 capacity | Set `FERMI_ACCOUNT_SERUM3_COUNT=0` |
+| Unknown group without program ID | Supply the custom deployment's `programId` |
+| `please deposit gas` | Read the relayer fee status and fund that ledger |
+| HTTP 429 or gRPC `RESOURCE_EXHAUSTED` | Respect the retry delay and reduce the request rate |
+| Direct pools not initialized | Submit through the relayer |
 
-## Troubleshooting
-
-| Symptom                                | First thing to check                                   |
-|----------------------------------------|--------------------------------------------------------|
-| `HTTP 425 cache_miss` on /simulate     | `POST /simulate/warm` first (or hit `/state/users/<owner>`) |
-| `please deposit gas` from relayer      | top up via `depositFeeCredit()` (section 6)            |
-| `Custom(6126) LegacyQueuesDisabled`    | relayer was built without v5 routing — rebuild from current source |
-| `AccountOwnedByWrongProgram`           | program id in source `declare_id!` doesn't match deployed |
-| `dispatch failed` with no fill         | check `/trace/sequence/<market>/<seq>` on the harness  |
-| `would_reject: insufficient_init_margin` (when expected to fit) | `cached_age_ms` may be > 15s — re-warm; check `optimistic_overlay_applied` |
-
-Always start with `npm run smoke-check` when something doesn't work.
+See [the migration guide](docs/r9-migration.md) for raw IDL and transport name differences.

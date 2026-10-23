@@ -1,3 +1,4 @@
+export * from './accountClient';
 export * from './context';
 export * from './deployments';
 export * from './fees';

@@ -3,16 +3,9 @@
 import 'dotenv/config';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
-import {
-  Group,
-  MangoAccount,
-  MangoClient as FermiV1AccountClient,
-} from '@blockworks-foundation/mango-v4';
-import {
-  loadKeypair,
-  resolveProgramIdForGroup,
-  toPublicKey,
-} from '../context';
+import { Group } from '@blockworks-foundation/mango-v4';
+import { FermiV1Account, FermiV1AccountClient } from '../accountClient';
+import { loadKeypair, resolveProgramIdForGroup, toPublicKey } from '../context';
 import {
   clusterFromEnv,
   clusterUrlFromEnv,
@@ -58,11 +51,23 @@ async function createClientAndGroup(): Promise<{
     programId: process.env.PROGRAM_ID,
     deployment: deployment?.name,
   });
-  const client = await FermiV1AccountClient.connect(provider, cluster, programId, {
-    idsSource: 'get-program-accounts',
-  });
+  const client = await FermiV1AccountClient.connect(
+    provider,
+    cluster,
+    programId,
+    {
+      idsSource: 'get-program-accounts',
+    },
+  );
   const group = await client.getGroup(groupPk);
-  return { user, connection, client, group, programId, deployment: deployment?.name };
+  return {
+    user,
+    connection,
+    client,
+    group,
+    programId,
+    deployment: deployment?.name,
+  };
 }
 
 async function resolveCreatedAccount(params: {
@@ -70,9 +75,9 @@ async function resolveCreatedAccount(params: {
   group: Group;
   owner: Keypair;
   accountNumber: number;
-}): Promise<MangoAccount> {
+}): Promise<FermiV1Account> {
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const found = await params.client.getMangoAccountForOwner(
+    const found = await params.client.getFermiAccountForOwner(
       params.group,
       params.owner.publicKey,
       params.accountNumber,
@@ -97,8 +102,9 @@ async function main(): Promise<void> {
   const perpOoCount = optionalIntEnv('FERMI_ACCOUNT_PERP_OO_COUNT');
   const accountName = process.env.FERMI_ACCOUNT_NAME || '';
 
-  const { user, client, group, programId, deployment } = await createClientAndGroup();
-  const existing = await client.getMangoAccountForOwner(
+  const { user, client, group, programId, deployment } =
+    await createClientAndGroup();
+  const existing = await client.getFermiAccountForOwner(
     group,
     user.publicKey,
     accountNumber,
@@ -109,7 +115,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const status = await client.createMangoAccount(
+  const status = await client.createFermiAccount(
     group,
     accountNumber,
     accountName,
@@ -134,6 +140,7 @@ async function main(): Promise<void> {
         program_id: programId.toBase58(),
         group: group.publicKey.toBase58(),
         owner: user.publicKey.toBase58(),
+        fermi_account: created.publicKey.toBase58(),
         mango_account: created.publicKey.toBase58(),
         account_num: created.accountNum,
         name: accountName,

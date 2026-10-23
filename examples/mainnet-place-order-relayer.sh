@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export FERMI_DEPLOYMENT="${FERMI_DEPLOYMENT:-fermi-r6-mainnet}"
+export FERMI_DEPLOYMENT="${FERMI_DEPLOYMENT:-fermi-r9-mainnet}"
 export PERP_ORDER_MARKET_INDEX="${PERP_ORDER_MARKET_INDEX:-${PERP_MARKET_INDEX:-0}}"
 export PERP_ORDER_TYPE="${PERP_ORDER_TYPE:-postOnlySlide}"
 export PERP_ORDER_SELF_TRADE_BEHAVIOR="${PERP_ORDER_SELF_TRADE_BEHAVIOR:-decrementTake}"
