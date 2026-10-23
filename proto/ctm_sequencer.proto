@@ -23,13 +23,51 @@ message SubmitIntentRequest {
   uint32 intent_version = 12;
   uint32 target_kind = 13;
   uint32 target_index = 14;
-  // 8-byte user randomizer bound into canonical_user_intent_v3.
-  // 0 is reserved for non-user-signed/admin/sweep traffic; user-signed
-  // intents should set a unique random value per intent.
+  // P0.5 single-hash migration: 8-byte random randomizer the user
+  // generated when signing the intent. Bound into
+  // canonical_user_intent_v3 on-chain. 0 is a valid placeholder for
+  // non-user-signed intents (relayer-originated sweeps, admin ops);
+  // user-signed intents MUST set a random value per intent.
   uint64 client_order_id = 15;
   // Relayer-local fee cap in lamports. Empty or "auto" means the caller
-  // accepts the prevailing quoted fee. base_fee is kept as a legacy alias.
+  // accepts the prevailing quoted fee.
   string max_fee_lamports = 16;
+  // Stop-loss / take-profit terms. When set, the relayer does not commit the
+  // intent: after the signer, account-shape and signature checks it hands the
+  // request to the trigger-orders keeper, which later resubmits it (without
+  // this field, as intent_version 2) once the trigger condition holds. A
+  // request carrying this field must use intent_version 3, so a relayer that
+  // predates trigger orders rejects it rather than committing it at once. The
+  // terms are not signed separately; client_order_id must equal their
+  // commitment (see client-SL-TP.md).
+  TriggerOrderTerms trigger_order = 17;
+}
+
+// Trigger terms of a withheld stop-loss / take-profit intent. Commitment:
+// first 8 bytes (u64 LE) of sha256 over the canonical encoding in
+// client-SL-TP.md, which must equal the intent's client_order_id and the
+// PerpPlaceOrderV2 payload's client_order_id.
+message TriggerOrderTerms {
+  // Terms encoding version. Currently 1.
+  uint32 version = 1;
+  // 0 = stop loss, 1 = take profit.
+  uint32 kind = 2;
+  // 0 = fire when the oracle price is at or above the trigger,
+  // 1 = fire when it is at or below.
+  uint32 direction = 3;
+  // Trigger price in the market's price lots (same unit as order price_lots).
+  int64 trigger_price_lots = 4;
+  // Shared by the legs of one SL/TP bracket: once one leg fills, the keeper
+  // cancels its siblings. An unfilled attempt does not cancel them. 0 = no one-cancels-other group.
+  uint64 oco_group = 5;
+  // Unix seconds. Must equal the payload's expiry_timestamp.
+  uint64 expiry_ts = 6;
+  // Random per leg, so equal terms still commit to distinct client_order_ids.
+  uint64 salt = 7;
+  // 0 = the perp market's on-chain oracle. No other source is defined yet.
+  uint32 price_source = 8;
+  // Reserved, must be 0.
+  uint32 flags = 9;
 }
 
 message SubmitIntentResponse {
@@ -37,8 +75,22 @@ message SubmitIntentResponse {
   string tx_signature = 2;
   bytes user_intent_message = 3;
   bytes ctm_envelope_message = 4;
+  // Time from relayer ingress to the point the request is accepted:
+  // sequence reserved, envelope built, and tx signed.
   double accepted_latency_ms = 5;
+  // Time from relayer ingress to the point the local optimistic/preplay
+  // state has been updated for this intent. This excludes on-chain
+  // reconciliation and only reflects the hot path.
   double optimistic_processed_latency_ms = 6;
+  // JSON-encoded Rust preplay result for the local optimistic mutation. This
+  // carries status plus posted/canceled/fill/out deltas and is produced by the
+  // same rust-harness engine used by the harness read daemon.
+  string optimistic_preplay_result_json = 7;
+  // Set only for a request carrying trigger_order: the keeper's id for the
+  // withheld intent and its status ("pending" or "armed"). sequence and
+  // tx_signature are then empty, since nothing was committed.
+  string trigger_order_id = 8;
+  string trigger_order_status = 9;
 }
 
 service CtmSequencerRelayer {

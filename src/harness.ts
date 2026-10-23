@@ -54,8 +54,16 @@ export type OpenOrderSummary = {
 
 export type MarketState = {
   market: string;
-  bids: Array<{ price_lots: string; base_lots: string; [key: string]: unknown }>;
-  asks: Array<{ price_lots: string; base_lots: string; [key: string]: unknown }>;
+  bids: Array<{
+    price_lots: string;
+    base_lots: string;
+    [key: string]: unknown;
+  }>;
+  asks: Array<{
+    price_lots: string;
+    base_lots: string;
+    [key: string]: unknown;
+  }>;
   open_orders: OpenOrderSummary[];
   watermarks?: {
     optimistic_seq?: string;
@@ -295,8 +303,13 @@ function toBase58(value?: PublicKey | string): string | undefined {
   return value instanceof PublicKey ? value.toBase58() : value;
 }
 
-function withQuery(path: string, query: Record<string, string | undefined>): string {
-  const entries = Object.entries(query).filter(([, value]) => value !== undefined);
+function withQuery(
+  path: string,
+  query: Record<string, string | undefined>,
+): string {
+  const entries = Object.entries(query).filter(
+    ([, value]) => value !== undefined,
+  );
   if (!entries.length) {
     return path;
   }
@@ -329,7 +342,7 @@ export class FermiV1StateClient {
     this._fetch = opts.fetchImpl ?? fetch;
   }
 
-  private async request<T>(
+  protected async request<T>(
     method: 'GET' | 'POST',
     path: string,
     body?: unknown,
@@ -376,7 +389,10 @@ export class FermiV1StateClient {
   }
 
   async getBootstrap(): Promise<HarnessDeploymentConfig> {
-    return await this.request<HarnessDeploymentConfig>('GET', '/state/bootstrap');
+    return await this.request<HarnessDeploymentConfig>(
+      'GET',
+      '/state/bootstrap',
+    );
   }
 
   async getMarkets(params?: {
@@ -389,7 +405,10 @@ export class FermiV1StateClient {
       'GET',
       withQuery('/state/markets', {
         view: params?.view ?? 'optimistic',
-        depth: params?.depth !== undefined ? String(Math.max(1, Math.floor(params.depth))) : undefined,
+        depth:
+          params?.depth !== undefined
+            ? String(Math.max(1, Math.floor(params.depth)))
+            : undefined,
         book: params?.book,
         markets: params?.markets?.length
           ? params.markets.map((market) => String(market)).join(',')
@@ -407,7 +426,10 @@ export class FermiV1StateClient {
       'GET',
       withQuery(`/state/markets/${encodeURIComponent(String(market))}`, {
         view: params?.view ?? 'optimistic',
-        depth: params?.depth !== undefined ? String(Math.max(1, Math.floor(params.depth))) : undefined,
+        depth:
+          params?.depth !== undefined
+            ? String(Math.max(1, Math.floor(params.depth)))
+            : undefined,
       }),
     );
   }
@@ -460,12 +482,42 @@ export class FermiV1StateClient {
     return response.data;
   }
 
+  private async flpSnapshot(
+    path: string,
+  ): Promise<import('./flpMetadata').FlpMetadataSnapshot> {
+    const response = await this.request<
+      import('./flpMetadata').FlpMetadataSnapshot
+    >('GET', path);
+    if (response.schema_version !== 1)
+      throw new Error('unsupported FLP metadata schema');
+    return response;
+  }
+
+  getFlpVault(vault: PublicKey | string) {
+    return this.flpSnapshot(`/state/vaults/${new PublicKey(vault).toBase58()}`);
+  }
+
+  getFlpVaultPortfolio(vault: PublicKey | string) {
+    return this.flpSnapshot(
+      `/state/vaults/${new PublicKey(vault).toBase58()}/portfolio`,
+    );
+  }
+
+  getFlpVaultUser(vault: PublicKey | string, owner: PublicKey | string) {
+    return this.flpSnapshot(
+      `/state/vaults/${new PublicKey(vault).toBase58()}/users/${new PublicKey(owner).toBase58()}`,
+    );
+  }
+
   async getBalances(
     owner: PublicKey | string,
     view: QueueView = 'optimistic',
   ): Promise<UserBalances> {
     const ownerPk = toBase58(owner)!;
-    const response = await this.request<{ view: QueueView; data: UserBalances }>(
+    const response = await this.request<{
+      view: QueueView;
+      data: UserBalances;
+    }>(
       'GET',
       withQuery(`/state/balances/${encodeURIComponent(ownerPk)}`, { view }),
     );
@@ -484,7 +536,10 @@ export class FermiV1StateClient {
         view: params.view ?? 'optimistic',
         market: params.market !== undefined ? String(params.market) : undefined,
         owner: toBase58(params.owner),
-        limit: params.limit !== undefined ? String(Math.max(0, Math.floor(params.limit))) : undefined,
+        limit:
+          params.limit !== undefined
+            ? String(Math.max(0, Math.floor(params.limit)))
+            : undefined,
       }),
     );
     return response.data;
@@ -503,7 +558,10 @@ export class FermiV1StateClient {
       'GET',
       withQuery(`/state/trades/${encodeURIComponent(String(params.market))}`, {
         view: params.view ?? 'optimistic',
-        limit: params.limit !== undefined ? String(Math.max(0, Math.floor(params.limit))) : undefined,
+        limit:
+          params.limit !== undefined
+            ? String(Math.max(0, Math.floor(params.limit)))
+            : undefined,
       }),
     );
     return response.data;
@@ -533,27 +591,49 @@ export class FermiV1StateClient {
     /** @deprecated `/ohlc` is DB-backed; the optimistic/confirmed view does not apply. */
     view?: QueueView;
   }): Promise<MarketCandle[]> {
-    const resolutionToTf: Record<number, '1m' | '5m' | '15m' | '1h' | '4h' | '1d'> = {
-      60: '1m', 300: '5m', 900: '15m', 3600: '1h', 14400: '4h', 86400: '1d',
+    const resolutionToTf: Record<
+      number,
+      '1m' | '5m' | '15m' | '1h' | '4h' | '1d'
+    > = {
+      60: '1m',
+      300: '5m',
+      900: '15m',
+      3600: '1h',
+      14400: '4h',
+      86400: '1d',
     };
     const tf =
       params.timeframe ??
-      (params.resolutionSec !== undefined ? resolutionToTf[params.resolutionSec] : undefined) ??
+      (params.resolutionSec !== undefined
+        ? resolutionToTf[params.resolutionSec]
+        : undefined) ??
       '1m';
     const response = await this.request<MarketCandle[]>(
       'GET',
       withQuery(`/ohlc/${encodeURIComponent(String(params.market))}`, {
         tf,
-        from: params.fromSec !== undefined ? String(Math.floor(params.fromSec)) : undefined,
-        to: params.toSec !== undefined ? String(Math.floor(params.toSec)) : undefined,
-        limit: params.limit !== undefined ? String(Math.max(0, Math.floor(params.limit))) : undefined,
+        from:
+          params.fromSec !== undefined
+            ? String(Math.floor(params.fromSec))
+            : undefined,
+        to:
+          params.toSec !== undefined
+            ? String(Math.floor(params.toSec))
+            : undefined,
+        limit:
+          params.limit !== undefined
+            ? String(Math.max(0, Math.floor(params.limit)))
+            : undefined,
       }),
     );
     return response;
   }
 
   async getFullState(view: QueueView = 'optimistic'): Promise<EngineSnapshot> {
-    return await this.request<EngineSnapshot>('GET', withQuery('/state/full', { view }));
+    return await this.request<EngineSnapshot>(
+      'GET',
+      withQuery('/state/full', { view }),
+    );
   }
 
   async getFullStateForMarket(
@@ -591,7 +671,11 @@ export class FermiV1StateClient {
   async airdropUsdc(
     params: HarnessAirdropRequest,
   ): Promise<HarnessAirdropResponse> {
-    return await this.request<HarnessAirdropResponse>('POST', '/airdrop', params);
+    return await this.request<HarnessAirdropResponse>(
+      'POST',
+      '/airdrop',
+      params,
+    );
   }
 
   async airdropDepositUsdc(
@@ -609,7 +693,11 @@ export class FermiV1StateClient {
    * `/admin/replay`. Only usable against a direct-harness deployment.
    */
   async adminReplay(): Promise<Record<string, unknown>> {
-    return await this.request<Record<string, unknown>>('POST', '/admin/replay', {});
+    return await this.request<Record<string, unknown>>(
+      'POST',
+      '/admin/replay',
+      {},
+    );
   }
 
   // Prefetch a user's Fermi v1 account(s) into the harness's in-process simulate

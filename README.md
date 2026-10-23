@@ -17,7 +17,7 @@ npm run validate
 cp .env.fermi-r9-mainnet.example .env
 ```
 
-The install hook builds `dist/`. The package version is `0.2.0`.
+The install hook builds `dist/`. The package version is `0.3.0`.
 
 ## Mainnet config
 
@@ -187,6 +187,19 @@ The direct-order CLI and helpers reject this deployment. Direct helpers remain a
 an explicitly prepared deployment. They default to an expiry of current slot + 20.
 The low-level direct builder requires a non-zero expiry.
 
+## Trigger orders and FLP
+
+`FermiV1TriggerClient` supports SL/TP submission, status reads and signed cancellation.
+`prepareSlTpOrdersUi` builds a bounded reduce-only IOC bracket from a trading context.
+The updated protobuf also supports trigger submission through `FermiV1RelayerClient`.
+See [trigger orders](docs/trigger-orders.md) for signatures, OCO and cancellation outcomes.
+
+`FlpClient` and the `flp` namespace expose all 56 current vault instructions,
+account decoders and utility functions. `buildFlpPricingContext` supplies pricing
+accounts and event queues. FLP uses an explicit program ID and vault PDA.
+See [FLP usage](docs/flp.md) for deposits, graduation, epochs and recovery.
+`FermiV1StateClient` also reads FLP vault, portfolio and user metadata.
+
 ## Documentation and checks
 
 - [Usage guide](USAGE.md): account creation, margin, orders, fees, reads, and streams.
@@ -196,5 +209,5 @@ The low-level direct builder requires a non-zero expiry.
 - [Intent reference](intent_reference.md): payloads and signed-message domains.
 
 `npm run validate` checks types, builds the package, runs offline regression tests,
-and checks the package contents. Tests use public mainnet account snapshots.
+and checks the package contents. Tests use public mainnet account snapshots and canonical trigger/FLP Rust fixtures.
 They do not send transactions.

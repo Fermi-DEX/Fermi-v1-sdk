@@ -1,6 +1,6 @@
 {
   "name": "@fermilabs/fermi-v1-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Self-contained SDK for Fermi v1 relayer writes, state reads, and direct chain interactions.",
   "main": "./dist/index.js",
@@ -55,7 +55,9 @@
     "@grpc/proto-loader": "^0.8.0",
     "@solana/web3.js": "^1.78.2",
     "dotenv": "^16.0.3",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "@solana/spl-token": "0.4.8",
+    "buffer": "6.0.3"
   },
   "devDependencies": {
     "@types/node": "^18.11.18",

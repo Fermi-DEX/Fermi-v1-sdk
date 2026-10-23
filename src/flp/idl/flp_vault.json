@@ -1,0 +1,5828 @@
+{
+  "version": "0.1.0",
+  "name": "flp_vault",
+  "instructions": [
+    {
+      "name": "expandMarketCapacity",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "recoveryTargets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "perpCount",
+          "type": "u8"
+        },
+        {
+          "name": "perpOoCount",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "initializeVault",
+      "docs": [
+        "PR23 initializer; defaults the new bounded equity window to five minutes."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "group",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "quoteBank",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "quoteMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "vaultId",
+          "type": "u16"
+        },
+        {
+          "name": "params",
+          "type": {
+            "defined": "LegacyVaultParams"
+          }
+        },
+        {
+          "name": "guardian",
+          "type": "publicKey"
+        },
+        {
+          "name": "feeRecipient",
+          "type": "publicKey"
+        }
+      ]
+    },
+    {
+      "name": "initFermiAccount",
+      "docs": [
+        "Preserve the old bytes, but never bypass RC1's delegate timelock."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "perpCount",
+          "type": "u8"
+        },
+        {
+          "name": "perpOoCount",
+          "type": "u8"
+        },
+        {
+          "name": "initialDelegate",
+          "type": {
+            "option": "publicKey"
+          }
+        }
+      ]
+    },
+    {
+      "name": "stageParams",
+      "docs": [
+        "An old policy update must preserve the current funding window."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": "LegacyVaultParams"
+          }
+        }
+      ]
+    },
+    {
+      "name": "preDeposit",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userShareAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "preWithdraw",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userShareAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "closeEpoch",
+      "docs": [
+        "Safe for an empty deferred queue; FIFO validation rejects omitted batches."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "epochRecord",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "deferredTailRecord",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true,
+          "docs": [
+            "when a new withdrawal batch is appended to a nonempty queue."
+          ]
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeShareAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Fee recipient's share ATA. It may be missing while the close mints no",
+            "fee shares (all fees zero)."
+          ]
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeEpochEquity",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "epochRecord",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "deferredTailRecord",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true,
+          "docs": [
+            "when a new withdrawal batch is appended to a nonempty queue."
+          ]
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeShareAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Fee recipient's share ATA. It may be missing while the close mints no",
+            "fee shares (all fees zero)."
+          ]
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "deferredBatchCount",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "enablePermissionedMode",
+      "docs": [
+        "Fresh RC2 vaults already use permissioned v3 and equity settlement."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "shareMint",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "enableEquitySettlement",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "shareMint",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "switchToLive",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "settleDeferred",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "epochRecord",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initializeVaultV3",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "group",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "quoteBank",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "quoteMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "vaultId",
+          "type": "u16"
+        },
+        {
+          "name": "params",
+          "type": {
+            "defined": "VaultParams"
+          }
+        },
+        {
+          "name": "guardian",
+          "type": "publicKey"
+        },
+        {
+          "name": "feeRecipient",
+          "type": "publicKey"
+        }
+      ]
+    },
+    {
+      "name": "initFermiAccountV3",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "perpCount",
+          "type": "u8"
+        },
+        {
+          "name": "perpOoCount",
+          "type": "u8"
+        },
+        {
+          "name": "tokenCount",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "seedVault",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "adminQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "deadShareAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "associatedTokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "preDepositV3",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "preWithdrawV3",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "setDepositPermission",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "approved",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "permissionedDeposit",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userShareAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "pricing",
+          "accounts": [
+            {
+              "name": "authority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "shareMint",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "feeShareAccount",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Fee recipient's share ATA. It may be missing while an accrual mints no",
+                "fee shares."
+              ]
+            },
+            {
+              "name": "idleAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermi",
+              "accounts": [
+                {
+                  "name": "group",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "fermiAccount",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "quoteBank",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "quoteBankVault",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "quoteOracle",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "fermiProgram",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "tokenProgram",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "token2022Program",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "minShares",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "graduate",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "pricing",
+          "accounts": [
+            {
+              "name": "authority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "shareMint",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "feeShareAccount",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Fee recipient's share ATA. It may be missing while an accrual mints no",
+                "fee shares."
+              ]
+            },
+            {
+              "name": "idleAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermi",
+              "accounts": [
+                {
+                  "name": "group",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "fermiAccount",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "quoteBank",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "quoteBankVault",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "quoteOracle",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "fermiProgram",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "tokenProgram",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "token2022Program",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claimPreDeposit",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userShareAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "requestDeposit",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "cancelDeposit",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "refundPendingDeposit",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "epochRecord",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true,
+          "docs": [
+            "The ticket's epoch record; required only for a ticket whose epoch closed",
+            "during unwind with its deposits held."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claimDeposit",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "epochRecord",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userShareAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The depositor's Token-2022 share ATA (create it idempotently first)."
+          ]
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "requestWithdraw",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userShareAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "cancelWithdraw",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userShareAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claimWithdrawal",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "epochRecord",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The depositor's quote-token ATA."
+          ]
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeEpochV3",
+      "docs": [
+        "Close and fund the mandatory FIFO prefix at one pricing snapshot."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "epochRecord",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "deferredTailRecord",
+          "isMut": true,
+          "isSigner": false,
+          "isOptional": true,
+          "docs": [
+            "when a new withdrawal batch is appended to a nonempty queue."
+          ]
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "depositEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeShareAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Fee recipient's share ATA. It may be missing while the close mints no",
+            "fee shares (all fees zero)."
+          ]
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "deferredBatchCount",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "sweepIdle",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The authority's canonical quote ATA. A delegate `token_withdraw` can",
+            "only pay out here (the core restricts delegates to the owner's ATA), and",
+            "anything here is outside NAV until swept back."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deactivatePerpPosition",
+      "docs": [
+        "Release a flat perp position slot (permissionless cleanup)."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "perpMarket",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "checkBreaker",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "shareMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resetBreaker",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "shareMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancelOrders",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "signer",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "triggerUnwind",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "shareMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "deferredRecord",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "signer",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "full",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "unwindStep",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "perpMarket",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "bids",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "asks",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "eventQueue",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "recoverToken",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "buyer",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "buyerQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "buyerTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Canonical quote ATA, checked before any transfer; counted in pricing NAV."
+          ]
+        },
+        {
+          "name": "inventoryBank",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "inventoryBankVault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "inventoryOracle",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "maxQuote",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "finishUnwind",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "shareMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "escrow before full recovery freezes terminal assets."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "terminalRedeem",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userShareAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "token2022Program",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "stageRecoveryParams",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": "RecoveryParams"
+          }
+        }
+      ]
+    },
+    {
+      "name": "applyRecoveryParams",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "proposeDelegate",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "delegate",
+          "type": "publicKey"
+        }
+      ]
+    },
+    {
+      "name": "activateDelegate",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "signer",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "removeDelegate",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "signer",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "setStatus",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "signer",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "setFlags",
+          "type": "u8"
+        },
+        {
+          "name": "clearFlags",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "stageParamsV3",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": "VaultParams"
+          }
+        }
+      ]
+    },
+    {
+      "name": "applyParams",
+      "docs": [
+        "Remaining accounts only for a fee-rate change: pricing accounts, health",
+        "accounts and event queues, so the instruction accrues at the old rates."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "setRoles",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "guardian",
+          "type": "publicKey"
+        },
+        {
+          "name": "feeRecipient",
+          "type": "publicKey"
+        }
+      ]
+    },
+    {
+      "name": "proposeAdmin",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "newAdmin",
+          "type": "publicKey"
+        }
+      ]
+    },
+    {
+      "name": "acceptAdmin",
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "newAdmin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "abortUnwind",
+      "docs": [
+        "Admin: leave proportional or full recovery and return to live trading",
+        "with deposits paused and no delegate. Expanded vaults pass the sidecar."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initFermiAccountV4",
+      "docs": [
+        "Admin: a FermiAccount with up to 13 perp slots and the recovery store."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "recoveryTargets",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "perpCount",
+          "type": "u8"
+        },
+        {
+          "name": "perpOoCount",
+          "type": "u8"
+        },
+        {
+          "name": "tokenCount",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "cureDeferred",
+      "docs": [
+        "Delegate or admin: fund the deferred head at its own close price."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "headRecord",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "signer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "The vault's delegate or admin."
+          ]
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBank",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteBankVault",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "quoteOracle",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "redemptionEscrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "shareMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "idleAccount",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "triggerPartialUnwind",
+      "docs": [
+        "Admin or guardian: proportional reduction by `fraction_bps` without a batch."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fermi",
+          "accounts": [
+            {
+              "name": "group",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "fermiAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermiProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "shareMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "deferredRecord",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "signer",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "fractionBps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "permissionedWithdraw",
+      "docs": [
+        "Approved wallet, before graduation: redeem shares at once at NAV_low."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "userQuoteAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userShareAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "pricing",
+          "accounts": [
+            {
+              "name": "authority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "shareMint",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "feeShareAccount",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Fee recipient's share ATA. It may be missing while an accrual mints no",
+                "fee shares."
+              ]
+            },
+            {
+              "name": "idleAccount",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "fermi",
+              "accounts": [
+                {
+                  "name": "group",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "fermiAccount",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "quoteBank",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "quoteBankVault",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "quoteOracle",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "fermiProgram",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "tokenProgram",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "token2022Program",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
+        },
+        {
+          "name": "minQuote",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initDepositor",
+      "docs": [
+        "Anyone: create a wallet's Depositor record (no deposit approval)."
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "depositor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "RecoveryTargets",
+      "docs": [
+        "Additional account, not a reallocation of the frozen PR23 Vault layout.",
+        "Expanded vaults require this PDA as the last remaining account on recovery",
+        "and epoch-close instructions. Existing four-market vaults remain unchanged."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "publicKey"
+          },
+          {
+            "name": "mode",
+            "type": "u8"
+          },
+          {
+            "name": "batchEpoch",
+            "type": "u64"
+          },
+          {
+            "name": "startedAt",
+            "type": "i64"
+          },
+          {
+            "name": "marketIndexes",
+            "type": {
+              "array": [
+                "u16",
+                13
+              ]
+            }
+          },
+          {
+            "name": "targetBaseLots",
+            "type": {
+              "array": [
+                "i64",
+                13
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "authorityBump",
+            "type": "u8"
+          },
+          {
+            "name": "shareMintBump",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "vaultId",
+            "type": "u16"
+          },
+          {
+            "name": "quoteTokenIndex",
+            "type": "u16"
+          },
+          {
+            "name": "group",
+            "type": "publicKey"
+          },
+          {
+            "name": "fermiAccount",
+            "type": "publicKey"
+          },
+          {
+            "name": "quoteBank",
+            "type": "publicKey"
+          },
+          {
+            "name": "quoteMint",
+            "type": "publicKey"
+          },
+          {
+            "name": "shareMint",
+            "type": "publicKey"
+          },
+          {
+            "name": "depositEscrow",
+            "type": "publicKey"
+          },
+          {
+            "name": "redemptionEscrow",
+            "type": "publicKey"
+          },
+          {
+            "name": "admin",
+            "type": "publicKey"
+          },
+          {
+            "name": "pendingAdmin",
+            "type": "publicKey"
+          },
+          {
+            "name": "guardian",
+            "type": "publicKey"
+          },
+          {
+            "name": "feeRecipient",
+            "type": "publicKey"
+          },
+          {
+            "name": "delegate",
+            "type": "publicKey"
+          },
+          {
+            "name": "pendingDelegate",
+            "type": "publicKey"
+          },
+          {
+            "name": "pendingDelegateEta",
+            "type": "i64"
+          },
+          {
+            "name": "params",
+            "type": {
+              "defined": "LegacyVaultParams"
+            }
+          },
+          {
+            "name": "pendingParams",
+            "type": {
+              "defined": "LegacyVaultParams"
+            }
+          },
+          {
+            "name": "pendingParamsEta",
+            "type": "i64"
+          },
+          {
+            "name": "epoch",
+            "docs": [
+              "The currently open epoch."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "epochStartedAt",
+            "type": "i64"
+          },
+          {
+            "name": "pending",
+            "type": {
+              "array": [
+                {
+                  "defined": "PendingTotals"
+                },
+                4
+              ]
+            }
+          },
+          {
+            "name": "owedUnmintedShares",
+            "docs": [
+              "Shares owed to depositors of closed epochs but not yet claimed",
+              "(non-transferable shares are minted on claim)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "lockedShares",
+            "docs": [
+              "Shares burned by withdraw requests whose batch has not settled yet.",
+              "They still count toward supply and bear PnL until settlement."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "deadShares",
+            "docs": [
+              "Seed shares minted to the authority's share account; never redeemable."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "deferredHead",
+            "docs": [
+              "Oldest / newest deferred withdrawal batch (NONE_EPOCH when none)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "deferredTail",
+            "type": "u64"
+          },
+          {
+            "name": "hwmPriceE12",
+            "docs": [
+              "Price per share (quote native per share native) × 1e12."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "lastFeeAccrualTs",
+            "type": "i64"
+          },
+          {
+            "name": "lastNav",
+            "type": {
+              "defined": "NavSnapshot"
+            }
+          },
+          {
+            "name": "breakerRefPriceE12",
+            "type": "u128"
+          },
+          {
+            "name": "breakerRefTs",
+            "type": "i64"
+          },
+          {
+            "name": "stats",
+            "type": {
+              "defined": "VaultStats"
+            }
+          },
+          {
+            "name": "nextRequestId",
+            "type": "u64"
+          },
+          {
+            "name": "preDepositTotal",
+            "type": "u64"
+          },
+          {
+            "name": "liveStartedAt",
+            "type": "i64"
+          },
+          {
+            "name": "recoveryParams",
+            "type": {
+              "defined": "RecoveryParams"
+            }
+          },
+          {
+            "name": "pendingRecoveryParams",
+            "type": {
+              "defined": "RecoveryParams"
+            }
+          },
+          {
+            "name": "pendingRecoveryEta",
+            "type": "i64"
+          },
+          {
+            "name": "unwind",
+            "type": {
+              "defined": "UnwindState"
+            }
+          },
+          {
+            "name": "terminalAssets",
+            "type": "u64"
+          },
+          {
+            "name": "terminalSupply",
+            "type": "u64"
+          },
+          {
+            "name": "heldDeposits",
+            "docs": [
+              "Deposits of epochs closed during unwind. They stay in the deposit escrow",
+              "until `refund_pending_deposit` returns them; they never bought shares."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "graduationNum",
+            "docs": [
+              "Fixed conversion for public escrow at graduation. These claims remain",
+              "in pricing supply until the original depositors receive their shares."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "graduationDen",
+            "type": "u128"
+          },
+          {
+            "name": "graduationRemainingQuote",
+            "type": "u64"
+          },
+          {
+            "name": "graduationRemainingShares",
+            "type": "u64"
+          },
+          {
+            "name": "reserved",
+            "docs": [
+              "PR23 extension: timing [0..9], equity marker [9], current/pending window [10..18],",
+              "expanded recovery marker [18], deferred-head funding failure [19..28],",
+              "delegate to restore after a proportional recovery [28..61]."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                67
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "EpochRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "publicKey"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "closedAt",
+            "type": "i64"
+          },
+          {
+            "name": "closedSlot",
+            "type": "u64"
+          },
+          {
+            "name": "nav",
+            "type": {
+              "defined": "NavSnapshot"
+            }
+          },
+          {
+            "name": "supply",
+            "docs": [
+              "Pricing supply (mint supply + owed + locked) after fee accrual."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "mgmtFeeShares",
+            "type": "u64"
+          },
+          {
+            "name": "perfFeeShares",
+            "type": "u64"
+          },
+          {
+            "name": "depGross",
+            "type": "u64"
+          },
+          {
+            "name": "depNet",
+            "type": "u64"
+          },
+          {
+            "name": "depNum",
+            "docs": [
+              "Deposit price as a ratio: shares = net × dep_num / dep_den. `dep_den == 0`",
+              "with `dep_gross > 0` marks deposits held for refund (closed during unwind)."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "depDen",
+            "type": "u128"
+          },
+          {
+            "name": "depShares",
+            "type": "u64"
+          },
+          {
+            "name": "depClaimedNet",
+            "type": "u64"
+          },
+          {
+            "name": "depClaimedShares",
+            "type": "u64"
+          },
+          {
+            "name": "wdShares",
+            "type": "u64"
+          },
+          {
+            "name": "wdStatus",
+            "type": "u8"
+          },
+          {
+            "name": "wdFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "wdCloseNum",
+            "docs": [
+              "Price at close: usdc = shares × wd_close_num / wd_close_den."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "wdCloseDen",
+            "type": "u128"
+          },
+          {
+            "name": "wdNum",
+            "docs": [
+              "Price fixed atomically when this batch is funded."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "wdDen",
+            "type": "u128"
+          },
+          {
+            "name": "wdGross",
+            "type": "u64"
+          },
+          {
+            "name": "wdFee",
+            "type": "u64"
+          },
+          {
+            "name": "wdSettledAt",
+            "type": "i64"
+          },
+          {
+            "name": "wdClaimedShares",
+            "type": "u64"
+          },
+          {
+            "name": "wdClaimedUsdc",
+            "type": "u64"
+          },
+          {
+            "name": "netted",
+            "docs": [
+              "Legacy wire field; zero because RC1 has no escrow netting path."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "nextDeferred",
+            "docs": [
+              "Next deferred batch after this one (NONE_EPOCH if last)."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Depositor",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "publicKey"
+          },
+          {
+            "name": "user",
+            "type": "publicKey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "dep",
+            "type": {
+              "defined": "Ticket"
+            }
+          },
+          {
+            "name": "wd",
+            "type": {
+              "defined": "Ticket"
+            }
+          },
+          {
+            "name": "sharesHeld",
+            "docs": [
+              "Claimed shares held in the user's wallet (mirror; non-transferable)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "costBasis",
+            "docs": [
+              "Average-cost basis of `shares_held`, in quote native."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "realizedPnl",
+            "type": "i64"
+          },
+          {
+            "name": "totalDeposited",
+            "type": "u64"
+          },
+          {
+            "name": "totalWithdrawn",
+            "type": "u64"
+          },
+          {
+            "name": "firstDepositTs",
+            "type": "i64"
+          },
+          {
+            "name": "lastActionTs",
+            "type": "i64"
+          },
+          {
+            "name": "preDepositAmount",
+            "docs": [
+              "Public principal. Never part of trading shares before graduation."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "depositApproved",
+            "type": "bool"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                55
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "RecoveryParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "graceProportionalS",
+            "type": "u32"
+          },
+          {
+            "name": "graceFullS",
+            "type": "u32"
+          },
+          {
+            "name": "oracleBandBps",
+            "type": "u16"
+          },
+          {
+            "name": "maxStepQuote",
+            "docs": [
+              "Quote native units; caps each IOC's oracle notional and quote budget."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UnwindState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mode",
+            "docs": [
+              "0 = inactive, 1 = proportional, 2 = full. Only full can close the vault."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "batchEpoch",
+            "type": "u64"
+          },
+          {
+            "name": "startedAt",
+            "type": "i64"
+          },
+          {
+            "name": "marketIndexes",
+            "type": {
+              "array": [
+                "u16",
+                4
+              ]
+            }
+          },
+          {
+            "name": "targetBaseLots",
+            "docs": [
+              "Signed target inventory. Only a failed eligible payout can extend a",
+              "completed proportional target; individual IOC cranks cannot overshoot it."
+            ],
+            "type": {
+              "array": [
+                "i64",
+                4
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epochDurationS",
+            "docs": [
+              "Epoch length in seconds (3 days on mainnet)."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "requestCutoffS",
+            "docs": [
+              "Requests made less than this many seconds before an epoch ends target",
+              "the following epoch."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "timelockS",
+            "docs": [
+              "Delay between `propose_delegate` and `activate_delegate`, and between",
+              "`stage_params` and `apply_params` (subject to the exit-window floor)."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "mgmtFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "perfFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "depositFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "withdrawFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "upnlHaircutBps",
+            "docs": [
+              "Haircut applied to positive unsettled perp PnL in NAV_low."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "minPostWithdrawInitRatioBps",
+            "docs": [
+              "A settlement withdrawal must leave the Init health ratio at or above",
+              "this (in bps of the core's percentage ratio, i.e. 3000 = 30%)."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "breakerDrawdownBps",
+            "type": "u16"
+          },
+          {
+            "name": "breakerMinInitRatioBps",
+            "type": "u16"
+          },
+          {
+            "name": "breakerWindowS",
+            "type": "u32"
+          },
+          {
+            "name": "tvlCap",
+            "docs": [
+              "0 = uncapped."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "minDeposit",
+            "type": "u64"
+          },
+          {
+            "name": "minWithdrawShares",
+            "type": "u64"
+          },
+          {
+            "name": "equityWindowS",
+            "docs": [
+              "Seconds after a scheduled epoch end during which a close funds exits.",
+              "Bounded by `MIN_EQUITY_WINDOW_S..=MAX_EQUITY_WINDOW_S` and changed only",
+              "through the timelocked parameter path, like every other policy value."
+            ],
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LegacyVaultParams",
+      "docs": [
+        "PR23 wire parameters. New policy lives in the reserved account extension."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epochDurationS",
+            "docs": [
+              "Epoch length in seconds (3 days on mainnet)."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "requestCutoffS",
+            "docs": [
+              "Requests made less than this many seconds before an epoch ends target",
+              "the following epoch."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "timelockS",
+            "docs": [
+              "Delay between `propose_delegate` and `activate_delegate`, and between",
+              "`stage_params` and `apply_params` (subject to the exit-window floor)."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "mgmtFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "perfFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "depositFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "withdrawFeeBps",
+            "type": "u16"
+          },
+          {
+            "name": "upnlHaircutBps",
+            "docs": [
+              "Haircut applied to positive unsettled perp PnL in NAV_low."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "minPostWithdrawInitRatioBps",
+            "docs": [
+              "A settlement withdrawal must leave the Init health ratio at or above",
+              "this (in bps of the core's percentage ratio, i.e. 3000 = 30%)."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "breakerDrawdownBps",
+            "type": "u16"
+          },
+          {
+            "name": "breakerMinInitRatioBps",
+            "type": "u16"
+          },
+          {
+            "name": "breakerWindowS",
+            "type": "u32"
+          },
+          {
+            "name": "tvlCap",
+            "docs": [
+              "0 = uncapped."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "minDeposit",
+            "type": "u64"
+          },
+          {
+            "name": "minWithdrawShares",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PendingTotals",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "depositsGross",
+            "type": "u64"
+          },
+          {
+            "name": "depositsNet",
+            "docs": [
+              "Deposits after the deposit fee, summed from per-request net amounts so",
+              "that per-user claims can never exceed the aggregate mint."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "withdrawShares",
+            "type": "u64"
+          },
+          {
+            "name": "nDeposits",
+            "type": "u32"
+          },
+          {
+            "name": "nWithdraws",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "NavSnapshot",
+      "docs": [
+        "NAV of the vault's FermiAccount, in quote (USDC) native units."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "navMid",
+            "type": "i64"
+          },
+          {
+            "name": "navLow",
+            "type": "i64"
+          },
+          {
+            "name": "navHigh",
+            "type": "i64"
+          },
+          {
+            "name": "initRatioBps",
+            "docs": [
+              "Init health ratio in bps (the core's percentage × 100); i64::MAX when the",
+              "account has no liabilities."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "spotQuote",
+            "docs": [
+              "Spot quote-token balance held in the FermiAccount (withdrawable",
+              "without borrowing, before health limits)."
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultStats",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "inceptionTs",
+            "type": "i64"
+          },
+          {
+            "name": "totalDepositedGross",
+            "type": "u64"
+          },
+          {
+            "name": "totalWithdrawnNet",
+            "type": "u64"
+          },
+          {
+            "name": "netDeposits",
+            "docs": [
+              "total deposited (gross) − total withdrawn (net). Base for dollar PnL."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "cumMgmtFeeShares",
+            "type": "u64"
+          },
+          {
+            "name": "cumPerfFeeShares",
+            "type": "u64"
+          },
+          {
+            "name": "activeDepositors",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EpochTiming",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "epochDurationS",
+            "type": "u32"
+          },
+          {
+            "name": "requestCutoffS",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ticket",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "requestId",
+            "type": "u64"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Deposit: gross USDC. Withdraw: shares."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "aux",
+            "docs": [
+              "Deposit: net USDC after fee. Withdraw: cost basis released."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "Settled"
+          },
+          {
+            "name": "Deferred"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "FlpMarketCapacityExpanded",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "perpCount",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "perpOoCount",
+          "type": "u8",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpExpandedRecoveryTargets",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "mode",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "batchEpoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "startedAt",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "marketIndexes",
+          "type": {
+            "array": [
+              "u16",
+              13
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "targetBaseLots",
+          "type": {
+            "array": [
+              "i64",
+              13
+            ]
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpUnwindTargetsExtended",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "batchEpoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "reason",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "targetBaseLots",
+          "type": {
+            "array": [
+              "i64",
+              4
+            ]
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpPreDepositFlow",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "deposit",
+          "type": "bool",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "escrowTotal",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpUnwindStarted",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "full",
+          "type": "bool",
+          "index": false
+        },
+        {
+          "name": "batchEpoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "startedAt",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpUnwindStep",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "marketIndex",
+          "type": "u16",
+          "index": false
+        },
+        {
+          "name": "baseLotsBefore",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "targetBaseLots",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "maxBaseLots",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "priceLots",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpUnwindFinished",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "closed",
+          "type": "bool",
+          "index": false
+        },
+        {
+          "name": "terminalAssets",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "terminalSupply",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpTerminalRedeemed",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "payout",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpRecoveryParamsChanged",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "action",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "eta",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "params",
+          "type": {
+            "defined": "RecoveryParams"
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpDepositsHeld",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "gross",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "count",
+          "type": "u32",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpBreakerReset",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "priceLowE12",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "initRatioBps",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "by",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpOrdersCancelled",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "by",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "marketIndexes",
+          "type": {
+            "array": [
+              "u16",
+              4
+            ]
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpVaultInitialized",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "group",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "vaultId",
+          "type": "u16",
+          "index": false
+        },
+        {
+          "name": "shareMint",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpFermiAccountCreated",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "fermiAccount",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "delegate",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpSeeded",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpDepositRequested",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "requestId",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "gross",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "net",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpDepositCancelled",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "requestId",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "gross",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpWithdrawRequested",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "requestId",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "basisReleased",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpWithdrawCancelled",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "requestId",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpNav",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "nav",
+          "type": {
+            "defined": "NavSnapshot"
+          },
+          "index": false
+        },
+        {
+          "name": "supply",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "priceLowE12",
+          "type": "u128",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpFeesAccrued",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "mgmtShares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "perfShares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "hwmPriceE12",
+          "type": "u128",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpEpochClosed",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "nav",
+          "type": {
+            "defined": "NavSnapshot"
+          },
+          "index": false
+        },
+        {
+          "name": "supply",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "depGross",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "depNet",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "depShares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "wdShares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "wdStatus",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "wdGross",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "netted",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "fermiDeposit",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "fermiWithdraw",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpWithdrawDeferred",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "required",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "spotQuote",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "initRatioAfterBps",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "reason",
+          "type": "u8",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpWithdrawSettled",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "gross",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "fee",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "wdNum",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "wdDen",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "deferred",
+          "type": "bool",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpClaimed",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "requestId",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "kind",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "amountIn",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "amountOut",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpDelegateChanged",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "old",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "new",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "action",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "eta",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpStatusChanged",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "old",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "new",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "by",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpBreakerTripped",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "priceLowE12",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "refPriceE12",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "initRatioBps",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpParamsChanged",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "action",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "eta",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpIdleSwept",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpCoreDepositRefused",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "reason",
+          "type": "u8",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpDepositPermission",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "approved",
+          "type": "bool",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpPermissionedDeposit",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpGraduated",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "num",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "den",
+          "type": "u128",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpPreDepositClaimed",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpTokenRecovered",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "buyer",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "tokenIndex",
+          "type": "u16",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "quote",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpEquityClose",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "scheduledEnd",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "eligible",
+          "type": "bool",
+          "index": false
+        },
+        {
+          "name": "batchesFunded",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "remainingHead",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "wdNum",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "wdDen",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "ineligibleReason",
+          "type": "u8",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpEquityFundingSkipped",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "pricingEpoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "reason",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "required",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "idle",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "spotQuote",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "initRatioAfterBps",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpPerpPositionDeactivated",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "marketIndex",
+          "type": "u16",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpUnwindSized",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "marketIndex",
+          "type": "u16",
+          "index": false
+        },
+        {
+          "name": "policyLots",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "healthLots",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "preInitHealthBits",
+          "type": "i128",
+          "index": false
+        },
+        {
+          "name": "worstInitHealthBits",
+          "type": "i128",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpLiveStarted",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "startedAt",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "deposited",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpPermissionedEnabled",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpEquitySettlementEnabled",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpOrdersCancelledExpanded",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "by",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "marketIndexes",
+          "type": {
+            "array": [
+              "u16",
+              13
+            ]
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpTerminalResidual",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "reservedQuote",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "forfeitedQuote",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpUnwindAborted",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "mode",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "batchEpoch",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpBreakerConditionAtClose",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "priceLowE12",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "refPriceE12",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "initRatioBps",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpPermissionedWithdrawal",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "shares",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "gross",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "fee",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "net",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "FlpDeferredCured",
+      "fields": [
+        {
+          "name": "vault",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "epoch",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "by",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "wdNum",
+          "type": "u128",
+          "index": false
+        },
+        {
+          "name": "wdDen",
+          "type": "u128",
+          "index": false
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "MathOverflow",
+      "msg": "math overflow"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidParams",
+      "msg": "invalid vault parameters"
+    },
+    {
+      "code": 6002,
+      "name": "Unauthorized",
+      "msg": "signer is not authorized for this action"
+    },
+    {
+      "code": 6003,
+      "name": "DepositsPaused",
+      "msg": "deposits are paused"
+    },
+    {
+      "code": 6004,
+      "name": "WithdrawalsPaused",
+      "msg": "withdrawals are paused"
+    },
+    {
+      "code": 6005,
+      "name": "BreakerTripped",
+      "msg": "circuit breaker is tripped"
+    },
+    {
+      "code": 6006,
+      "name": "BelowMinimum",
+      "msg": "amount is below the minimum"
+    },
+    {
+      "code": 6007,
+      "name": "CapExceeded",
+      "msg": "deposit would exceed the vault TVL cap"
+    },
+    {
+      "code": 6008,
+      "name": "TicketPending",
+      "msg": "an earlier ticket must be claimed first"
+    },
+    {
+      "code": 6009,
+      "name": "NoTicket",
+      "msg": "no ticket to act on"
+    },
+    {
+      "code": 6010,
+      "name": "PastCutoff",
+      "msg": "the ticket's epoch is past its request cutoff"
+    },
+    {
+      "code": 6011,
+      "name": "NotSettled",
+      "msg": "the ticket's epoch has not been settled yet"
+    },
+    {
+      "code": 6012,
+      "name": "EpochNotEnded",
+      "msg": "the current epoch has not ended"
+    },
+    {
+      "code": 6013,
+      "name": "PendingSlotBusy",
+      "msg": "pending-totals slot is still in use"
+    },
+    {
+      "code": 6014,
+      "name": "NotSeeded",
+      "msg": "vault has not been seeded"
+    },
+    {
+      "code": 6015,
+      "name": "AlreadySeeded",
+      "msg": "vault is already seeded"
+    },
+    {
+      "code": 6016,
+      "name": "VaultInsolvent",
+      "msg": "vault NAV is not positive"
+    },
+    {
+      "code": 6017,
+      "name": "BeingLiquidated",
+      "msg": "vault FermiAccount is being liquidated"
+    },
+    {
+      "code": 6018,
+      "name": "FermiAccountMismatch",
+      "msg": "FermiAccount or bank does not match the vault"
+    },
+    {
+      "code": 6019,
+      "name": "WrongTokenAccount",
+      "msg": "token account is not the expected canonical account"
+    },
+    {
+      "code": 6020,
+      "name": "WrongEpochRecord",
+      "msg": "epoch record does not match"
+    },
+    {
+      "code": 6021,
+      "name": "NotDeferredHead",
+      "msg": "this batch is not the oldest deferred batch"
+    },
+    {
+      "code": 6022,
+      "name": "MissingDeferredTail",
+      "msg": "the deferred tail record must be supplied"
+    },
+    {
+      "code": 6023,
+      "name": "InsufficientLiquidity",
+      "msg": "withdrawal liquidity is still insufficient"
+    },
+    {
+      "code": 6024,
+      "name": "TimelockActive",
+      "msg": "timelock has not elapsed"
+    },
+    {
+      "code": 6025,
+      "name": "NothingPending",
+      "msg": "nothing is pending"
+    },
+    {
+      "code": 6026,
+      "name": "BreakerNotTriggered",
+      "msg": "breaker conditions are not met"
+    },
+    {
+      "code": 6027,
+      "name": "WrongVaultMode",
+      "msg": "instruction is not allowed in this vault mode"
+    },
+    {
+      "code": 6028,
+      "name": "RecoveryGraceActive",
+      "msg": "recovery grace period has not elapsed"
+    },
+    {
+      "code": 6029,
+      "name": "RecoveryNotComplete",
+      "msg": "supply or trading inventory is not ready for terminal redemption"
+    },
+    {
+      "code": 6030,
+      "name": "WrongRecoveryMarket",
+      "msg": "recovery market accounts or target do not match"
+    },
+    {
+      "code": 6031,
+      "name": "DepositHeldForRefund",
+      "msg": "this epoch closed during unwind; its deposits can only be refunded"
+    },
+    {
+      "code": 6032,
+      "name": "BreakerResetRequired",
+      "msg": "clear the breaker with reset_breaker, which refreshes its reference price"
+    },
+    {
+      "code": 6033,
+      "name": "DepositNotApproved",
+      "msg": "wallet is not approved for direct deposits"
+    },
+    {
+      "code": 6034,
+      "name": "SlippageExceeded",
+      "msg": "deposit produces fewer shares than the minimum"
+    },
+    {
+      "code": 6035,
+      "name": "GraduationSpreadTooWide",
+      "msg": "NAV_high and NAV_low are too far apart to graduate; wait for stable and oracle prices to converge, or settle positive PnL"
+    },
+    {
+      "code": 6036,
+      "name": "FeeChangeNeedsAccrual",
+      "msg": "fee rates change only right after fees accrue; send apply_params after close_epoch in the same transaction"
+    },
+    {
+      "code": 6037,
+      "name": "RecoveryHealthLimit",
+      "msg": "no whole recovery lot fits current health at the permitted price and fees"
+    },
+    {
+      "code": 6038,
+      "name": "LegacyEconomicModeUnsupported",
+      "msg": "legacy economic mode is unsupported; use graduate and atomic close_epoch_equity"
+    },
+    {
+      "code": 6039,
+      "name": "InitialDelegateRequiresTimelock",
+      "msg": "initial delegate is unsupported; propose and activate after the immutable timelock"
+    },
+    {
+      "code": 6040,
+      "name": "RecoveryGraceTooShort",
+      "msg": "recovery grace must cover a full epoch plus its funding window"
+    },
+    {
+      "code": 6041,
+      "name": "RecoveryReasonNotEligible",
+      "msg": "the deferred head has no eligible cash or health funding failure that opens permissionless recovery"
+    },
+    {
+      "code": 6042,
+      "name": "UnconsumedVaultFills",
+      "msg": "a fill or out event of the vault account is unconsumed; consume the perp events before pricing"
+    },
+    {
+      "code": 6043,
+      "name": "WrongEventQueue",
+      "msg": "event queues must follow the health accounts, one per active perp position in position order"
+    },
+    {
+      "code": 6044,
+      "name": "RecoveryStepNoFill",
+      "msg": "the unwind step did not fill; the attempt reverts so the order penalty is not charged"
+    },
+    {
+      "code": 6045,
+      "name": "RecoveryParamsNotWidening",
+      "msg": "during unwind, recovery parameters may only widen the oracle band and step size; grace values are fixed"
+    },
+    {
+      "code": 6046,
+      "name": "CureBelowClosePrice",
+      "msg": "the current NAV_low price is below the deferred batch's close price; the batch waits for its next close"
+    },
+    {
+      "code": 6047,
+      "name": "DeferredWithdrawalFirst",
+      "msg": "an older withdrawal batch is deferred; it is funded first (cure_deferred or the next close)"
+    }
+  ],
+  "metadata": {
+    "address": "FKrm8e4Y8vAXRRGkUtTK7t5d2WdY6pxK6ChMV4KH1F8g"
+  }
+}

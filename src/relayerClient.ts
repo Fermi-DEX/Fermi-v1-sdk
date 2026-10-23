@@ -2,11 +2,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { AccountMeta, PublicKey } from '@solana/web3.js';
 import path from 'path';
-import {
-  API_KEY_HEADER,
-  RateLimitedError,
-  requireApiKey,
-} from './auth';
+import { API_KEY_HEADER, RateLimitedError, requireApiKey } from './auth';
 
 export type RelayerAccountMeta = {
   pubkey: string;
@@ -31,6 +27,19 @@ export type SubmitIntentRequest = {
   target_kind?: number;
   target_index?: number;
   client_order_id?: string;
+  trigger_order?: TriggerOrderTermsWire;
+};
+
+export type TriggerOrderTermsWire = {
+  version: 1;
+  kind: 0 | 1;
+  direction: 0 | 1;
+  trigger_price_lots: string;
+  oco_group: string;
+  expiry_ts: string;
+  salt: string;
+  price_source: 0;
+  flags: 0;
 };
 
 export type SubmitIntentResponse = {
@@ -44,6 +53,9 @@ export type SubmitIntentResponse = {
   resolved_target_kind?: number;
   resolved_target_index?: number;
   resolved_accounts_hash?: string;
+  optimistic_preplay_result_json?: string;
+  trigger_order_id?: string;
+  trigger_order_status?: string;
 };
 
 type RelayerGrpcClient = {
@@ -71,7 +83,9 @@ function loadRelayerProto(protoPath: string): LoadedProto {
     defaults: true,
     oneofs: true,
   });
-  return grpc.loadPackageDefinition(packageDefinition) as unknown as LoadedProto;
+  return grpc.loadPackageDefinition(
+    packageDefinition,
+  ) as unknown as LoadedProto;
 }
 
 export function defaultRelayerProtoPath(): string {
@@ -128,7 +142,14 @@ export class FermiV1RelayerClient {
     );
   }
 
-  async submitIntent(request: SubmitIntentRequest): Promise<SubmitIntentResponse> {
+  async submitIntent(
+    request: SubmitIntentRequest,
+  ): Promise<SubmitIntentResponse> {
+    if (request.trigger_order && request.intent_version !== 3) {
+      throw new Error(
+        'trigger orders require intent_version 3; refusing immediate-order routing',
+      );
+    }
     return await new Promise<SubmitIntentResponse>((resolve, reject) => {
       this.client.submitIntent(request, (err, response) => {
         if (err) {

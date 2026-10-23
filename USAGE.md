@@ -222,3 +222,10 @@ A longer expiry can exceed the replay window. The program permits a TTL up to
 | Direct pools not initialized | Submit through the relayer |
 
 See [the migration guide](docs/r9-migration.md) for raw IDL and transport name differences.
+
+## Trigger orders and FLP
+
+Use [the trigger-order guide](docs/trigger-orders.md) for signed SL/TP brackets,
+status reads and cancellation. Use [the FLP guide](docs/flp.md) for vault
+instructions, pricing accounts, metadata and current admin/recovery operations.
+The service must enable trigger and FLP metadata routes before those reads work.

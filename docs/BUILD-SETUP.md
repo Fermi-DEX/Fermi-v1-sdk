@@ -52,3 +52,16 @@ The source snapshot predates v5 queue instructions. The SDK uses explicit v5 wir
 For a future release, use the deployment's source and IDL together.
 Do not replace the Fermi IDL with the upstream Mango IDL.
 Run the r9 regression suite after any schema or account-model change.
+
+## Trigger and FLP sources
+
+The trigger contract and FLP client come from `fermi-v1` commit
+`7afba98770b6bae99d839c296f3c7fd4750ab18c`.
+The r9 core IDL remains pinned separately to its deployed release.
+`src/flp/idl/flp_vault.json` is the separate vault IDL.
+The package includes its JSON, the updated trigger protobuf and both usage guides.
+
+The trigger tests pin the Rust terms commitment, intent hash, signature and
+cancellation hashes. FLP tests pin the Rust instruction bytes, account privileges,
+layout compatibility, phase transitions and recovery sidecars.
+These are offline tests. They do not qualify a new deployment or run a live keeper.
