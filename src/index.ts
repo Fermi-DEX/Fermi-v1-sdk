@@ -24,3 +24,7 @@ export type {
   EpochAccount as FlpEpochAccount,
 } from './flp';
 export { buildFlpPricingContext } from './flpContext';
+
+export * as flpV4 from './flp/v4';
+export { FlpV4Client, FLP_V4_IDL, FLP_V4_RELEASE } from './flp/v4';
+export type { FundingWindowAccount, V4Accounts } from './flp/v4';

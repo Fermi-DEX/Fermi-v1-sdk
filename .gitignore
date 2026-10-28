@@ -6,3 +6,8 @@ npm-debug.log*
 yarn-error.log*
 pnpm-lock.yaml
 package-lock.json
+
+.flp-smoke/
+*.flp-receipt.json
+*.flp-receipt.json.lock
+*.flp-receipt.json.tmp
