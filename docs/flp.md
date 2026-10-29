@@ -44,7 +44,7 @@ const client = new FlpV4Client(
   new PublicKey(FLP_V4_RELEASE.vaultProgram),
 );
 const state = await client.fetchVault(vault);
-const instructions = client.preDepositInstructions(vault, state, user, 5_000_000n);
+const instructions = client.preDepositInstructions(vault, state, user, 10_000_000n);
 // Submit the entire array atomically through your wallet after checking current state.
 ```
 
@@ -55,7 +55,8 @@ readers validate their identities. Separate RPC reads can race a close or recove
 transition; refresh and rebuild when a generation check fails.
 
 Amounts are native integers (`bigint` or Anchor `BN`). USDC uses six decimals;
-`5_000_000n` is 5 USDC. Share amounts are native share units. Do not convert large
+`10_000_000n` is 10 USDC (the mainnet minimum at review time; read current parameters).
+Share amounts are native share units. Do not convert large
 balances through JavaScript `number`.
 
 ## Public and approved user flows
@@ -73,7 +74,7 @@ be supplied separately; the caller must supply the transaction's required signat
 | Public live deposit | `requestDepositInstructions` |
 | Approved deposit at current NAV | `permissionedDepositInstructions` with `minShares` |
 | Approved share withdrawal before graduation | `permissionedWithdrawInstructions` with `minQuote` |
-| Trading share withdrawal in live mode | `requestWithdrawInstructions` |
+| Queued trading share withdrawal, including approved shares before graduation | `requestWithdrawInstructions` |
 | Cancel queued deposit / withdrawal | `cancelDepositInstructions` / `cancelWithdrawInstructions` |
 | Closed vault's trading shares | `terminalRedeemInstructions` |
 | Settle priced deposit or refund held deposit | `settleDepositInstructions` with fetched epoch record |
@@ -109,6 +110,14 @@ Normal pricing uses virtual assets and shares of **1,000,000 native units each**
 - Recovery uses real NAV_low / real supply without virtual offsets. Use
   `recoveryWithdrawRatio`, not the normal ratio. Terminal claims use the recorded
   terminal assets/supply; do not add virtual offsets to them.
+
+Public pre-deposits are an exception to normal deposit pricing: they remain USDC
+principal until graduation, when the program fixes their conversion ratio using
+**NAV_mid**, with virtual offsets and accrued fee shares. `claimPreDepositInstructions`
+uses that stored ratio; it does not reprice against the current NAV. The graduation
+spread check excludes the configured positive-uPnL haircut, so it does not bound
+the difference between a new holder's conversion value and conservative NAV_low.
+Do not use `quoteDeposit(..., navHigh, ...)` to predict graduation shares.
 
 `quoteDeposit`, `depositRatio`, `withdrawRatio`, `recoveryWithdrawRatio`,
 `applyRatioFloor`, `priceE12`, `batchPayout` and `claimPayout` implement bounded integer arithmetic.

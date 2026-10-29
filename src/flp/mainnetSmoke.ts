@@ -10,7 +10,7 @@ import { FlpV4Client, FLP_V4_RELEASE, deriveVaultAddresses, deriveFermiAccount, 
   VaultAccount, STATUS, NONE_EPOCH, pricingSupply, claimPayout } from './v4';
 
 export const MAINNET_SMOKE = Object.freeze({
-  genesis: '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+  genesis: '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d',
   vault: '8aHdjxJzec6CfBngSFZYQvqZsBtXWXG6j1C3rW799pbP', vaultId: 1,
   vaultProgram: FLP_V4_RELEASE.vaultProgram, coreProgram: FLP_V4_RELEASE.coreProgram,
   group: FERMI_R9_MAINNET.group, quoteMint: FERMI_R9_MAINNET.usdcMint,
@@ -268,7 +268,8 @@ export function smokeSummary(receipt: SmokeReceipt): Record<string, any> {
     partialClaimComplete: matchedClaim,
     unwithdrawnSmokeShares: deposit ? (BigInt(deposit.shares) - BigInt(request?.shares ?? '0')).toString() : null,
     latestObservedNav: receipt.lastPreflight?.lastNav ?? null,
-    navObservationSlot: receipt.lastPreflight?.observedSlot ?? null,
+    navObservationSlot: receipt.lastPreflight?.lastNav?.slot ?? null,
+    accountReadSlot: receipt.lastPreflight?.observedSlot ?? null,
     note: 'NAV is a labeled account observation; transaction events and token balances provide action-specific evidence.',
   };
 }

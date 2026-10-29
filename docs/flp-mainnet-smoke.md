@@ -5,10 +5,11 @@ mainnet vault. It defaults to **read-only preflight**. Selecting an action witho
 `--transact` builds and simulates it without loading a private key or sending it.
 Only the human operator should invoke transaction mode.
 
-This implementation has offline/mock coverage. Live RPC validation in the build
-workspace was blocked by HTTP 403 at the network proxy. It has not been used here
-to sign, simulate against mainnet, or submit a transaction. It cannot promise that
-this deployment or a given wallet will pass today's gates.
+Read-only mainnet preflight passed during the 30 October 2026 (Singapore) SDK
+integration review, including the pinned vault/core binary hashes and account
+decoding. See the [validation record](flp-v4-validation.md). No private key was
+loaded and no transaction was signed, simulated or submitted during that review.
+Rerun preflight for current deployment state and wallet eligibility.
 
 ## Scope and risks
 
@@ -48,6 +49,11 @@ node dist/bin/flp-mainnet-smoke.js \
 ```
 
 Use an HTTPS RPC that permits full ProgramData reads and transaction history.
+
+The receipt separates `summary.navObservationSlot` (the stored NAV's valuation
+slot) from `summary.accountReadSlot` (the later clock read). Reading an account
+does not refresh its cached NAV. Preflight uses several confirmed RPC reads,
+which are not an atomic portfolio snapshot.
 Credentials may be supplied through `SOLANA_RPC_URL`; they are never written to
 receipts. No keypair is needed or accepted for read-only actions. Do not put a
 keypair JSON array on the command line. A transaction-mode keypair must be a local

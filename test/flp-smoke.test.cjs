@@ -30,6 +30,19 @@ test('wrong genesis stops before any account read or signer access', async () =>
   await assert.rejects(() => s.smokePreflight({ getGenesisHash: async () => 'devnet' }, new PublicKey(owner)), /mainnet/);
 });
 
+test('full mainnet genesis reaches deployment verification; truncated hash is rejected', async () => {
+  // Independent RPC value, deliberately not copied from MAINNET_SMOKE.
+  const genesis = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
+  const reachedPrograms = new Error('reached program verification');
+  await assert.rejects(() => s.smokePreflight({
+    getGenesisHash: async () => genesis,
+    getMultipleAccountsInfo: async () => { throw reachedPrograms; },
+  }, new PublicKey(owner)), error => error === reachedPrograms);
+  await assert.rejects(() => s.smokePreflight({
+    getGenesisHash: async () => genesis.slice(0, 32),
+  }, new PublicKey(owner)), /mainnet/);
+});
+
 test('mainnet vault identity binds group, core account, mint, escrows and version', () => {
   const program = new PublicKey(s.MAINNET_SMOKE.vaultProgram), group = new PublicKey(s.MAINNET_SMOKE.group);
   const addresses = v4.deriveVaultAddresses(program, group, 1);
@@ -159,4 +172,13 @@ test('receipt completion requires an exact on-chain claim, and distinguishes par
   assert.equal(s.smokeSummary(receipt).unwithdrawnSmokeShares, '100');
   receipt.records[2].events[0].data.epoch = '6';
   assert.equal(s.smokeSummary(receipt).partialClaimComplete, false);
+});
+
+test('receipt keeps the stored NAV valuation slot distinct from the later account read', () => {
+  const receipt = s.newReceipt(owner);
+  receipt.lastPreflight = { observedSlot: '462992569', lastNav: { slot: '462938543', navLow: '1926660679' } };
+  assert.equal(s.smokeSummary(receipt).navObservationSlot, '462938543');
+  assert.equal(s.smokeSummary(receipt).accountReadSlot, '462992569');
+  receipt.lastPreflight = { observedSlot: '462992569' };
+  assert.equal(s.smokeSummary(receipt).navObservationSlot, null);
 });
