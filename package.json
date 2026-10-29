@@ -16,7 +16,8 @@
     "fermi-v1-config": "./dist/bin/config.js",
     "fermi-v1-simulate": "./dist/bin/simulate.js",
     "fermi-v1-portfolio": "./dist/bin/portfolio.js",
-    "fermi-v1-onchain-portfolio": "./dist/bin/onchain-portfolio.js"
+    "fermi-v1-onchain-portfolio": "./dist/bin/onchain-portfolio.js",
+    "fermi-v1-flp-mainnet-smoke": "./dist/bin/flp-mainnet-smoke.js"
   },
   "files": [
     "dist",
@@ -29,10 +30,12 @@
     "USAGE.md",
     "src/bin/direct-orders/README.md",
     ".env.example",
-    ".env.fermi-r9-mainnet.example"
+    ".env.fermi-r9-mainnet.example",
+    "scripts/verify-flp-v4.py",
+    "scripts/copy-flp-v4-idl.cjs"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-flp-v4-idl.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepare": "npm run build",
     "validate": "npm run typecheck && npm test && npm pack --dry-run",
@@ -46,7 +49,8 @@
     "simulate": "ts-node src/bin/simulate.ts",
     "portfolio": "ts-node src/bin/portfolio.ts",
     "onchain-portfolio": "ts-node src/bin/onchain-portfolio.ts",
-    "test": "npm run build && node --test test/*.test.cjs"
+    "test": "npm run build && node --test test/*.test.cjs",
+    "flp-mainnet-smoke": "ts-node src/bin/flp-mainnet-smoke.ts"
   },
   "dependencies": {
     "@blockworks-foundation/mango-v4": "0.33.9",

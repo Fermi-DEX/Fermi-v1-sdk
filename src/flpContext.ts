@@ -11,7 +11,7 @@ import {
 /** Active-position CPI health accounts differ from the all-market v5 intent list. */
 export async function buildFlpPricingContext(
   core: FermiV1AccountClient,
-  client: FlpClient,
+  client: Pick<FlpClient, 'authority' | 'withEventQueues'>,
   vault: PublicKey,
   state: VaultAccount,
 ) {

@@ -194,7 +194,9 @@ The low-level direct builder requires a non-zero expiry.
 The updated protobuf also supports trigger submission through `FermiV1RelayerClient`.
 See [trigger orders](docs/trigger-orders.md) for signatures, OCO and cancellation outcomes.
 
-`FlpClient` and the `flp` namespace expose all 56 current vault instructions,
+`FlpV4Client` and `flpV4` expose the 47 deployed RC6.1/v4 instructions,
+account readers, funding-window and recovery builders. `FlpClient` and `flp` retain
+the legacy v3/RC4 interface. Both provide
 account decoders and utility functions. `buildFlpPricingContext` supplies pricing
 accounts and event queues. FLP uses an explicit program ID and vault PDA.
 See [FLP usage](docs/flp.md) for deposits, graduation, epochs and recovery.
@@ -211,3 +213,7 @@ See [FLP usage](docs/flp.md) for deposits, graduation, epochs and recovery.
 `npm run validate` checks types, builds the package, runs offline regression tests,
 and checks the package contents. Tests use public mainnet account snapshots and canonical trigger/FLP Rust fixtures.
 They do not send transactions.
+
+For an approved wallet, the [opt-in FLP mainnet smoke workflow](docs/flp-mainnet-smoke.md)
+defaults to read-only preflight. Transaction stages require explicit operator flags,
+native amount caps and a user-supplied keypair file. Withdrawal settlement is asynchronous.
