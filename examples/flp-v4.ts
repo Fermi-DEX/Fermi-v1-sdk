@@ -52,3 +52,18 @@ export async function claimWithdrawal(client: FlpV4Client, vault: PublicKey, use
   if (depositor.wd.epoch.eq(flpV4.NONE_EPOCH)) throw new Error('No withdrawal ticket');
   return client.claimWithdrawalInstructions(vault, state, user, depositor.wd.epoch);
 }
+
+/** Call after assembling ALL setup, operation and compute-budget instructions.
+ * Lookup table addresses must come from the deployment's verified configuration.
+ * Pass wallet.supportedTransactionVersions?.has(0) === true as supportsV0.
+ */
+export async function prepareForWallet(connection: Connection, payer: PublicKey,
+  instructions: import('@solana/web3.js').TransactionInstruction[], supportsV0: boolean,
+  lookupTableAddresses: PublicKey[]) {
+  const lookupTables = await Promise.all(lookupTableAddresses.map(async address => {
+    const { value } = await connection.getAddressLookupTable(address, { commitment: 'confirmed' });
+    if (!value) throw new Error(`Missing lookup table ${address}`);
+    return value;
+  }));
+  return flpV4.prepareFlpWalletTransaction(connection, { payer, instructions, supportsV0, lookupTables });
+}

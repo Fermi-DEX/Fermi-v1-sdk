@@ -410,3 +410,4 @@ export * from './math';
 export type { VaultAccount, DepositorAccount, EpochAccount, VaultParamsInput, RecoveryMarket } from './index';
 export { BN, STATUS, NONE_EPOCH, deriveVaultAddresses, deriveDepositor, deriveEpoch, deriveRecoveryTargets,
   deriveFermiAccount, recoveryMarketMetas, depositsHeld } from './index';
+export { prepareFlpWalletTransaction, DEFAULT_WALLET_RESERVE_BYTES } from './walletTransaction';
